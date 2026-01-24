@@ -1,0 +1,10 @@
+[package]
+name = "manacher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+rand = {workspace = true}
