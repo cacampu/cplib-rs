@@ -1,5 +1,6 @@
 /// ```
-/// let s   = [a, b, a, a, a, b, a, b, a];
+/// use manacher::manacher;
+/// let s   = [1, 2, 1, 1, 1, 2, 1, 2, 1];
 /// let ret = manacher(&s);
 /// assert_eq!(ret,vec![1, 2, 1, 4, 1, 2, 3, 2, 1]);
 /// ```
