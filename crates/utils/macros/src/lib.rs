@@ -46,7 +46,7 @@ mod tests {
     }
     #[test]
     fn test_mat() {
-        let a = mat![3,4,5;0];
+        let a = mat![3, 4, 5 ;0];
         assert_eq!(a, vec![vec![vec![0; 5]; 4]; 3]);
     }
 }
