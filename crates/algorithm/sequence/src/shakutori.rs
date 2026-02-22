@@ -27,3 +27,24 @@ pub trait Shakutori {
         ans
     }
 }
+
+#[macro_export]
+macro_rules! shakutori {
+    ($l:ident,$r:ident,$n:expr,$push:expr,$pop:expr,$check:expr,$update:expr) => {
+        let mut $l = 0;
+        let mut $r = 0;
+        while $l < $n {
+            while $r < $n && $check {
+                $push;
+                $r += 1;
+            }
+            $update;
+            if $l == $r {
+                $push;
+                $r += 1;
+            }
+            $pop;
+            $l += 1;
+        }
+    };
+}
