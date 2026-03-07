@@ -25,13 +25,13 @@ macro_rules! chmax {
 /// # Examples
 /// ```
 /// use macros::mat;
-/// let a = mat![3, 4, 5; 0];
+/// let a = mat![0; 3, 4, 5];
 /// assert_eq!(a, vec![vec![vec![0; 5]; 4]; 3]);
 /// ```
 #[macro_export]
 macro_rules! mat {
-	($d:expr; $e:expr) => { vec![$e; $d] };
-	($d:expr, $($ds:expr),+; $e:expr) => { vec![mat![$($ds),+; $e]; $d] };
+	($e:expr; $d:expr) => { vec![$e; $d] };
+	($e:expr; $d:expr, $($ds:expr),+) => { vec![mat![$e; $($ds),+]; $d] };
 }
 
 #[cfg(test)]
@@ -46,7 +46,7 @@ mod tests {
     }
     #[test]
     fn test_mat() {
-        let a = mat![3, 4, 5 ;0];
+        let a = mat![0; 3, 4, 5];
         assert_eq!(a, vec![vec![vec![0; 5]; 4]; 3]);
     }
 }
