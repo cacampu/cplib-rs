@@ -1,5 +1,6 @@
 import json
 import subprocess
+from pathlib import Path
 
 res = subprocess.run(
     ["cargo", "metadata", "--format-version", "1", "--no-deps"],
@@ -9,9 +10,13 @@ res = subprocess.run(
 )
 
 meta = json.loads(res.stdout)
-package_names = [item["name"] for item in meta.get("packages", [])]
-
 github_url = "https://github.com/cacampu/cplib-rs"
 
-for name in package_names:
-    print(f'cplib-{name} = {{ package = "{name}", git = "{github_url}" }}')
+crates_root = Path(meta["workspace_root"]) / "crates"
+
+for item in meta.get("packages", []):
+    name = item["name"]
+    # manifest_path 内の crates/ 以下のディレクトリ構造をそのまま反映
+    rel = Path(item["manifest_path"]).parent.relative_to(crates_root)
+    alias = "cplib-" + "-".join(rel.parts)
+    print(f'{alias} = {{ package = "{name}", git = "{github_url}" }}')
