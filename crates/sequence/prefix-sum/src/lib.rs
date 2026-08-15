@@ -93,7 +93,7 @@ impl<G: Group + Default> PrefixSum<G> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use algebra::{FnGroup, Sum};
+    use algebra::{FnGroup, Sum, Xor};
 
     #[test]
     fn prod_matches_naive() {
@@ -126,6 +126,19 @@ mod tests {
     #[should_panic]
     fn range_over_n_panics() {
         PrefixSum::new(0..100i64, Sum::<i64>::new()).prod(50..200);
+    }
+
+    /// `Group + Default` を満たすので from_slice が使える。累積 xor。
+    #[test]
+    fn prefix_xor() {
+        let a = [0b1100u64, 0b1010, 0b0110, 0b0001];
+        let ps = PrefixSum::<Xor<u64>>::from_slice(&a);
+        for l in 0..=a.len() {
+            for r in l..=a.len() {
+                let expected = a[l..r].iter().fold(0, |acc, x| acc ^ x);
+                assert_eq!(ps.prod(l..r), expected, "{l}..{r}");
+            }
+        }
     }
 
     #[test]

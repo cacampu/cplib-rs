@@ -50,7 +50,15 @@ macro_rules! def_marker_monoid {
     )*};
 }
 
-def_marker_monoid!(Min, Max, Sum, Prod);
+def_marker_monoid!(Min, Max, MinMax, Sum, Prod, Xor, BitAnd, BitOr, Gcd, Lcm);
+
+impl<T: Clone> MinMax<T> {
+    /// 1要素を `(min, max)` の組に持ち上げる。
+    #[inline]
+    pub fn of(value: T) -> (T, T) {
+        (value.clone(), value)
+    }
+}
 
 macro_rules! impl_num_monoid {
     ($($t:ty),*) => {$(
@@ -86,14 +94,107 @@ macro_rules! impl_num_monoid {
             fn binary_op(&self, a: &$t, b: &$t) -> $t { *a * *b }
         }
 
+        /// 区間の最小値と最大値を同時に持つ。要素は `MinMax::of` で作る。
+        impl Monoid for MinMax<$t> {
+            type T = ($t, $t);
+            #[inline]
+            fn identity(&self) -> ($t, $t) { (<$t>::MAX, <$t>::MIN) }
+            #[inline]
+            fn binary_op(&self, a: &($t, $t), b: &($t, $t)) -> ($t, $t) {
+                (a.0.min(b.0), a.1.max(b.1))
+            }
+        }
+
+        impl Monoid for Xor<$t> {
+            type T = $t;
+            #[inline]
+            fn identity(&self) -> $t { 0 }
+            #[inline]
+            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a ^ *b }
+        }
+
+        impl Monoid for BitAnd<$t> {
+            type T = $t;
+            #[inline]
+            fn identity(&self) -> $t { !0 }
+            #[inline]
+            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a & *b }
+        }
+
+        impl Monoid for BitOr<$t> {
+            type T = $t;
+            #[inline]
+            fn identity(&self) -> $t { 0 }
+            #[inline]
+            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a | *b }
+        }
+
+        impl Monoid for Gcd<$t> {
+            type T = $t;
+            /// gcd(0, x) = x なので単位元は 0。
+            #[inline]
+            fn identity(&self) -> $t { 0 }
+            #[inline]
+            fn binary_op(&self, a: &$t, b: &$t) -> $t { Gcd::<$t>::of(*a, *b) }
+        }
+
+        impl Monoid for Lcm<$t> {
+            type T = $t;
+            #[inline]
+            fn identity(&self) -> $t { 1 }
+            #[inline]
+            fn binary_op(&self, a: &$t, b: &$t) -> $t { Lcm::<$t>::of(*a, *b) }
+        }
+
         // 符号なし整数でも、差が数学的に非負なら wrapping で正しい値になる。
         // Prod は 0 が逆元を持たないので群にしない。
         impl Group for Sum<$t> {
             #[inline]
             fn inv_binary_op(&self, a: &$t, b: &$t) -> $t { a.wrapping_sub(*b) }
         }
+
+        // xor は各元が自身の逆元。
+        impl Group for Xor<$t> {
+            #[inline]
+            fn inv_binary_op(&self, a: &$t, b: &$t) -> $t { *a ^ *b }
+        }
     )*};
 }
+
+/// 符号の有無で結果の正規化が違うので gcd / lcm は分けて実装する。
+macro_rules! impl_gcd_lcm {
+    // 符号付きは負になりうるので絶対値を取る
+    (@norm signed $x:expr) => { ($x).wrapping_abs() };
+    (@norm unsigned $x:expr) => { $x };
+    ($sign:ident: $($t:ty),*) => {$(
+        impl Gcd<$t> {
+            /// ユークリッドの互除法。結果は非負。
+            pub fn of(a: $t, b: $t) -> $t {
+                let (mut a, mut b) = (a, b);
+                while b != 0 {
+                    let r = a % b;
+                    a = b;
+                    b = r;
+                }
+                impl_gcd_lcm!(@norm $sign a)
+            }
+        }
+
+        impl Lcm<$t> {
+            /// `lcm(0, x) = 0`。オーバーフローは呼び出し側の責任。
+            pub fn of(a: $t, b: $t) -> $t {
+                if a == 0 || b == 0 {
+                    return 0;
+                }
+                let g = Gcd::<$t>::of(a, b);
+                impl_gcd_lcm!(@norm $sign a / g * b)
+            }
+        }
+    )*};
+}
+
+impl_gcd_lcm!(unsigned: usize, u8, u16, u32, u64, u128);
+impl_gcd_lcm!(signed: isize, i8, i16, i32, i64, i128);
 
 impl_num_monoid!(
     usize, isize, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
@@ -203,6 +304,111 @@ mod tests {
         let prod = Prod::<i64>::new();
         assert_eq!(prod.identity(), 1);
         assert_eq!(prod.binary_op(&3, &5), 15);
+    }
+
+    #[test]
+    fn minmax() {
+        let m = MinMax::<i64>::new();
+        assert_eq!(m.identity(), (i64::MAX, i64::MIN));
+        assert_eq!(MinMax::of(3), (3, 3));
+        let folded = [3, 1, 4, 1, 5]
+            .into_iter()
+            .map(MinMax::of)
+            .fold(m.identity(), |acc, x| m.binary_op(&acc, &x));
+        assert_eq!(folded, (1, 5));
+    }
+
+    #[test]
+    fn bit_monoids() {
+        let x = Xor::<u64>::new();
+        assert_eq!(x.identity(), 0);
+        assert_eq!(x.binary_op(&0b1100, &0b1010), 0b0110);
+
+        let a = BitAnd::<u64>::new();
+        assert_eq!(a.identity(), u64::MAX);
+        assert_eq!(a.binary_op(&0b1100, &0b1010), 0b1000);
+
+        let o = BitOr::<u64>::new();
+        assert_eq!(o.identity(), 0);
+        assert_eq!(o.binary_op(&0b1100, &0b1010), 0b1110);
+
+        // 符号付きの and の単位元は全ビット1 = -1
+        assert_eq!(BitAnd::<i64>::new().identity(), -1);
+    }
+
+    #[test]
+    fn xor_is_a_group() {
+        let g = Xor::<u64>::new();
+        // 各元が自身の逆元
+        assert_eq!(g.inverse(&0b1011), 0b1011);
+        assert_eq!(g.inv_binary_op(&0b0110, &0b1010), 0b1100);
+        assert_eq!(g.binary_op(&g.inv_binary_op(&7, &5), &5), 7);
+    }
+
+    #[test]
+    fn gcd_lcm() {
+        let g = Gcd::<u64>::new();
+        assert_eq!(g.identity(), 0);
+        assert_eq!(g.binary_op(&12, &18), 6);
+        // 単位元との演算は恒等
+        assert_eq!(g.binary_op(&0, &7), 7);
+        assert_eq!(g.binary_op(&7, &0), 7);
+
+        let l = Lcm::<u64>::new();
+        assert_eq!(l.identity(), 1);
+        assert_eq!(l.binary_op(&4, &6), 12);
+        assert_eq!(l.binary_op(&1, &7), 7);
+        // 0 は吸収元
+        assert_eq!(l.binary_op(&0, &7), 0);
+
+        // 符号付きは絶対値で返す
+        assert_eq!(Gcd::<i64>::of(-12, 18), 6);
+        assert_eq!(Gcd::<i64>::of(-12, 0), 12);
+        assert_eq!(Lcm::<i64>::of(-4, 6), 12);
+    }
+
+    /// 結合則をランダムに確認する。
+    #[test]
+    fn associativity() {
+        let mut state = 88172645463325252u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state % 1000
+        };
+        macro_rules! check {
+            ($m:expr) => {{
+                let m = $m;
+                for _ in 0..200 {
+                    let (a, b, c) = (next(), next(), next());
+                    assert_eq!(
+                        m.binary_op(&m.binary_op(&a, &b), &c),
+                        m.binary_op(&a, &m.binary_op(&b, &c))
+                    );
+                    // 単位元則
+                    assert_eq!(m.binary_op(&m.identity(), &a), a);
+                    assert_eq!(m.binary_op(&a, &m.identity()), a);
+                }
+            }};
+        }
+        check!(Min::<u64>::new());
+        check!(Max::<u64>::new());
+        check!(Sum::<u64>::new());
+        check!(Xor::<u64>::new());
+        check!(BitAnd::<u64>::new());
+        check!(BitOr::<u64>::new());
+        check!(Gcd::<u64>::new());
+    }
+
+    /// `PrefixSum::from_slice` などが要求する `Group + Default` を満たす型。
+    #[test]
+    fn group_and_default_impls() {
+        fn assert_group_default<G: Group + Default>() {}
+        assert_group_default::<Sum<i64>>();
+        assert_group_default::<Sum<usize>>();
+        assert_group_default::<Xor<u64>>();
+        assert_group_default::<Xor<i64>>();
     }
 
     #[test]

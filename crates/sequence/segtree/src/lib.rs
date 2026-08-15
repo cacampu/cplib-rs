@@ -135,7 +135,7 @@ impl<M: Monoid> SegTree<M> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use algebra::{FnMonoid, Min, Sum};
+    use algebra::{FnMonoid, Min, MinMax, Sum};
 
     #[test]
     fn min_prod() {
@@ -178,6 +178,25 @@ mod tests {
         assert!(tree.is_empty());
         assert_eq!(tree.prod(..), 0);
         assert_eq!(tree.all_prod(), 0);
+    }
+
+    /// 区間の最小値と最大値を同時に取る。
+    #[test]
+    fn minmax_prod() {
+        let a = [3i64, 1, 4, 1, 5, 9];
+        let tree = SegTree::from_vec(
+            a.iter().copied().map(MinMax::of).collect(),
+            MinMax::<i64>::new(),
+        );
+        for l in 0..a.len() {
+            for r in l + 1..=a.len() {
+                let expected = (
+                    *a[l..r].iter().min().unwrap(),
+                    *a[l..r].iter().max().unwrap(),
+                );
+                assert_eq!(tree.prod(l..r), expected, "{l}..{r}");
+            }
+        }
     }
 
     /// モノイド側に定数(法)を持たせられることの確認。
