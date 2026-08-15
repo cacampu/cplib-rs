@@ -152,6 +152,13 @@ name = "rerooting-dp"
 version = "0.1.0"
 
 [[package]]
+name = "segtree"
+version = "0.1.0"
+dependencies = [
+ "algebra",
+]
+
+[[package]]
 name = "shakutori"
 version = "0.1.0"
 
