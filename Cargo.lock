@@ -89,6 +89,9 @@ dependencies = [
 [[package]]
 name = "prefix-sum"
 version = "0.1.0"
+dependencies = [
+ "algebra",
+]
 
 [[package]]
 name = "prim"
