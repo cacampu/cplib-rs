@@ -5,9 +5,7 @@ use std::{
 
 use prim::IntN;
 
-fn zip_with<T, U, S, const N: usize>(
-    a: [T; N], b: [U; N], f: impl Fn(T, U) -> S,
-) -> [S; N] {
+fn zip_with<T, U, S, const N: usize>(a: [T; N], b: [U; N], f: impl Fn(T, U) -> S) -> [S; N] {
     let mut a = a.into_iter();
     let mut b = b.into_iter();
     std::array::from_fn(|_| f(a.next().unwrap(), b.next().unwrap()))
@@ -21,7 +19,10 @@ pub struct Grid<T> {
 
 #[inline]
 fn in_bounds<const N: usize>(coord: [isize; N], size: [usize; N]) -> bool {
-    coord.into_iter().zip(size).all(|(c, s)| c >= 0 && c < s as isize)
+    coord
+        .into_iter()
+        .zip(size)
+        .all(|(c, s)| c >= 0 && c < s as isize)
 }
 
 impl<T> Grid<T> {
@@ -37,7 +38,7 @@ impl<T> Grid<T> {
 
     #[inline]
     pub fn in_bounds(&self, point: impl IntN<2>) -> bool {
-        in_bounds(point.to_ints(), self.size)
+        in_bounds(point.to_isizes(), self.size)
     }
 
     pub fn neighbors_custom<'d, P, D>(
@@ -49,11 +50,11 @@ impl<T> Grid<T> {
         P: IntN<2>,
         D: IntN<2> + Copy + 'd,
     {
-        let p = point.to_ints();
+        let p = point.to_isizes();
         let size = self.size;
         d.iter().filter_map(move |&dir| {
-            let nb = zip_with(p, dir.to_ints(), |pi, di| pi + di);
-            in_bounds(nb, size).then(|| nb.to_index())
+            let nb = zip_with(p, dir.to_isizes(), |pi, di| pi + di);
+            in_bounds(nb, size).then(|| nb.to_usizes())
         })
     }
 
@@ -66,18 +67,18 @@ impl<T> Grid<T> {
         P: IntN<2>,
         D: IntN<2> + Copy + 'd,
     {
-        let p = point.to_ints();
+        let p = point.to_isizes();
         let size = self.size;
         d.iter().enumerate().filter_map(move |(idx, &dir)| {
-            let nb = zip_with(p, dir.to_ints(), |pi, di| pi + di);
-            in_bounds(nb, size).then(|| (idx, nb.to_index()))
+            let nb = zip_with(p, dir.to_isizes(), |pi, di| pi + di);
+            in_bounds(nb, size).then(|| (idx, nb.to_usizes()))
         })
     }
 
     /// 点 `point` から方向 `d` に1歩移動した座標を返す。範囲外なら `None`。
     pub fn step(&self, point: impl IntN<2>, d: impl IntN<2>) -> Option<[usize; 2]> {
-        let nb = zip_with(point.to_ints(), d.to_ints(), |pi, di| pi + di);
-        in_bounds(nb, self.size).then(|| nb.to_index())
+        let nb = zip_with(point.to_isizes(), d.to_isizes(), |pi, di| pi + di);
+        in_bounds(nb, self.size).then(|| nb.to_usizes())
     }
 
     pub const D4: [[isize; 2]; 4] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
@@ -111,7 +112,7 @@ impl<P: IntN<2>, T> Index<P> for Grid<T> {
 
     #[inline]
     fn index(&self, index: P) -> &Self::Output {
-        let [x, y] = index.to_index();
+        let [x, y] = index.to_usizes();
         assert!(x < self.size[0] && y < self.size[1]);
         &self.inner[x * self.size[1] + y]
     }
@@ -120,7 +121,7 @@ impl<P: IntN<2>, T> Index<P> for Grid<T> {
 impl<P: IntN<2>, T> IndexMut<P> for Grid<T> {
     #[inline]
     fn index_mut(&mut self, index: P) -> &mut Self::Output {
-        let [x, y] = index.to_index();
+        let [x, y] = index.to_usizes();
         assert!(x < self.size[0] && y < self.size[1]);
         &mut self.inner[x * self.size[1] + y]
     }
@@ -139,7 +140,10 @@ impl<T> TryFrom<Vec<Vec<T>>> for Grid<T> {
         for row in value {
             inner.extend(row);
         }
-        Ok(Grid { inner, size: [h, w] })
+        Ok(Grid {
+            inner,
+            size: [h, w],
+        })
     }
 }
 

@@ -184,7 +184,7 @@ where
     [T; N]: IntN<N>,
 {
     #[inline]
-    fn to_ints(self) -> [isize; N] {
-        self.0.to_ints()
+    fn to_isizes(self) -> [isize; N] {
+        self.0.to_isizes()
     }
 }
