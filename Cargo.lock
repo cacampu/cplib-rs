@@ -69,6 +69,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "modint"
+version = "0.1.0"
+dependencies = [
+ "algebra",
+ "prefix-sum",
+ "segtree",
+]
+
+[[package]]
 name = "multi-testcase"
 version = "0.1.0"
 dependencies = [
