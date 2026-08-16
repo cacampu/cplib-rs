@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::ops::{Add, BitXor, Mul, Sub};
 
 /// モノイド。単位元 `identity` と結合的な二項演算 `binary_op` を持つ。
 ///
@@ -60,73 +61,169 @@ impl<T: Clone> MinMax<T> {
     }
 }
 
-macro_rules! impl_num_monoid {
+/// 加法単位元を持つ型。`Sum` や `Xor` の単位元に使う。
+pub trait Zero {
+    fn zero() -> Self;
+}
+
+/// 乗法単位元を持つ型。`Prod` の単位元に使う。
+pub trait One {
+    fn one() -> Self;
+}
+
+/// 取りうる値の上下限を持つ型。`Min` / `Max` の単位元に使う。
+pub trait Bounded {
+    fn min_value() -> Self;
+    fn max_value() -> Self;
+}
+
+/// 全ビットが立った値。`BitAnd` の単位元に使う。
+pub trait AllOnes {
+    fn all_ones() -> Self;
+}
+
+// ここから下は演算の存在だけを根拠にした実装なので、外部で定義した型
+// (modint や行列など) でも対応するトレイトを実装すればそのまま載る。
+
+impl<T: Clone + Ord + Bounded> Monoid for Min<T> {
+    type T = T;
+    #[inline]
+    fn identity(&self) -> T {
+        T::max_value()
+    }
+    #[inline]
+    fn binary_op(&self, a: &T, b: &T) -> T {
+        if a <= b { a.clone() } else { b.clone() }
+    }
+}
+
+impl<T: Clone + Ord + Bounded> Monoid for Max<T> {
+    type T = T;
+    #[inline]
+    fn identity(&self) -> T {
+        T::min_value()
+    }
+    #[inline]
+    fn binary_op(&self, a: &T, b: &T) -> T {
+        if a >= b { a.clone() } else { b.clone() }
+    }
+}
+
+/// 区間の最小値と最大値を同時に持つ。要素は `MinMax::of` で作る。
+impl<T: Clone + Ord + Bounded> Monoid for MinMax<T> {
+    type T = (T, T);
+    #[inline]
+    fn identity(&self) -> (T, T) {
+        (T::max_value(), T::min_value())
+    }
+    #[inline]
+    fn binary_op(&self, a: &(T, T), b: &(T, T)) -> (T, T) {
+        let lo = if a.0 <= b.0 { a.0.clone() } else { b.0.clone() };
+        let hi = if a.1 >= b.1 { a.1.clone() } else { b.1.clone() };
+        (lo, hi)
+    }
+}
+
+impl<T: Clone + Zero + Add<Output = T>> Monoid for Sum<T> {
+    type T = T;
+    #[inline]
+    fn identity(&self) -> T {
+        T::zero()
+    }
+    #[inline]
+    fn binary_op(&self, a: &T, b: &T) -> T {
+        a.clone() + b.clone()
+    }
+}
+
+/// 差が取れるなら群。符号なし整数の `inverse` のように、逆元自体が
+/// 表現できない場合は減算がオーバーフローする点に注意。
+impl<T: Clone + Zero + Add<Output = T> + Sub<Output = T>> Group for Sum<T> {
+    #[inline]
+    fn inv_binary_op(&self, a: &T, b: &T) -> T {
+        a.clone() - b.clone()
+    }
+}
+
+impl<T: Clone + One + Mul<Output = T>> Monoid for Prod<T> {
+    type T = T;
+    #[inline]
+    fn identity(&self) -> T {
+        T::one()
+    }
+    #[inline]
+    fn binary_op(&self, a: &T, b: &T) -> T {
+        a.clone() * b.clone()
+    }
+}
+
+impl<T: Clone + Zero + BitXor<Output = T>> Monoid for Xor<T> {
+    type T = T;
+    #[inline]
+    fn identity(&self) -> T {
+        T::zero()
+    }
+    #[inline]
+    fn binary_op(&self, a: &T, b: &T) -> T {
+        a.clone() ^ b.clone()
+    }
+}
+
+/// xor は各元が自身の逆元。
+impl<T: Clone + Zero + BitXor<Output = T>> Group for Xor<T> {
+    #[inline]
+    fn inv_binary_op(&self, a: &T, b: &T) -> T {
+        a.clone() ^ b.clone()
+    }
+}
+
+// 単位元は全ビット1。マーカー型と同名になるので std 側は完全修飾で書く。
+impl<T: Clone + AllOnes + std::ops::BitAnd<Output = T>> Monoid for BitAnd<T> {
+    type T = T;
+    #[inline]
+    fn identity(&self) -> T {
+        T::all_ones()
+    }
+    #[inline]
+    fn binary_op(&self, a: &T, b: &T) -> T {
+        a.clone() & b.clone()
+    }
+}
+
+impl<T: Clone + Zero + std::ops::BitOr<Output = T>> Monoid for BitOr<T> {
+    type T = T;
+    #[inline]
+    fn identity(&self) -> T {
+        T::zero()
+    }
+    #[inline]
+    fn binary_op(&self, a: &T, b: &T) -> T {
+        a.clone() | b.clone()
+    }
+}
+
+macro_rules! impl_num_traits {
     ($($t:ty),*) => {$(
-        impl Monoid for Min<$t> {
-            type T = $t;
+        impl Zero for $t {
             #[inline]
-            fn identity(&self) -> $t { <$t>::MAX }
-            #[inline]
-            fn binary_op(&self, a: &$t, b: &$t) -> $t { (*a).min(*b) }
+            fn zero() -> $t { 0 }
         }
 
-        impl Monoid for Max<$t> {
-            type T = $t;
+        impl One for $t {
             #[inline]
-            fn identity(&self) -> $t { <$t>::MIN }
-            #[inline]
-            fn binary_op(&self, a: &$t, b: &$t) -> $t { (*a).max(*b) }
+            fn one() -> $t { 1 }
         }
 
-        impl Monoid for Sum<$t> {
-            type T = $t;
+        impl Bounded for $t {
             #[inline]
-            fn identity(&self) -> $t { 0 }
+            fn min_value() -> $t { <$t>::MIN }
             #[inline]
-            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a + *b }
+            fn max_value() -> $t { <$t>::MAX }
         }
 
-        impl Monoid for Prod<$t> {
-            type T = $t;
+        impl AllOnes for $t {
             #[inline]
-            fn identity(&self) -> $t { 1 }
-            #[inline]
-            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a * *b }
-        }
-
-        /// 区間の最小値と最大値を同時に持つ。要素は `MinMax::of` で作る。
-        impl Monoid for MinMax<$t> {
-            type T = ($t, $t);
-            #[inline]
-            fn identity(&self) -> ($t, $t) { (<$t>::MAX, <$t>::MIN) }
-            #[inline]
-            fn binary_op(&self, a: &($t, $t), b: &($t, $t)) -> ($t, $t) {
-                (a.0.min(b.0), a.1.max(b.1))
-            }
-        }
-
-        impl Monoid for Xor<$t> {
-            type T = $t;
-            #[inline]
-            fn identity(&self) -> $t { 0 }
-            #[inline]
-            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a ^ *b }
-        }
-
-        impl Monoid for BitAnd<$t> {
-            type T = $t;
-            #[inline]
-            fn identity(&self) -> $t { !0 }
-            #[inline]
-            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a & *b }
-        }
-
-        impl Monoid for BitOr<$t> {
-            type T = $t;
-            #[inline]
-            fn identity(&self) -> $t { 0 }
-            #[inline]
-            fn binary_op(&self, a: &$t, b: &$t) -> $t { *a | *b }
+            fn all_ones() -> $t { !0 }
         }
 
         impl Monoid for Gcd<$t> {
@@ -145,21 +242,12 @@ macro_rules! impl_num_monoid {
             #[inline]
             fn binary_op(&self, a: &$t, b: &$t) -> $t { Lcm::<$t>::of(*a, *b) }
         }
-
-        // 符号なし整数でも、差が数学的に非負なら wrapping で正しい値になる。
-        // Prod は 0 が逆元を持たないので群にしない。
-        impl Group for Sum<$t> {
-            #[inline]
-            fn inv_binary_op(&self, a: &$t, b: &$t) -> $t { a.wrapping_sub(*b) }
-        }
-
-        // xor は各元が自身の逆元。
-        impl Group for Xor<$t> {
-            #[inline]
-            fn inv_binary_op(&self, a: &$t, b: &$t) -> $t { *a ^ *b }
-        }
     )*};
 }
+
+impl_num_traits!(
+    usize, isize, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
+);
 
 /// 符号の有無で結果の正規化が違うので gcd / lcm は分けて実装する。
 macro_rules! impl_gcd_lcm {
@@ -195,10 +283,6 @@ macro_rules! impl_gcd_lcm {
 
 impl_gcd_lcm!(unsigned: usize, u8, u16, u32, u64, u128);
 impl_gcd_lcm!(signed: isize, i8, i16, i32, i64, i128);
-
-impl_num_monoid!(
-    usize, isize, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
-);
 
 /// クロージャからモノイドを作る。単位元と演算を実行時に決めたい場合に使う。
 pub struct FnMonoid<T, F> {
