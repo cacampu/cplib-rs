@@ -1,0 +1,12 @@
+[package]
+name = "modint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+algebra.workspace = true
+
+[dev-dependencies]
+segtree.workspace = true
+prefix-sum.workspace = true
