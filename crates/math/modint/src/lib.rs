@@ -238,6 +238,57 @@ macro_rules! impl_modint_common {
                 ret
             }
 
+            /// 平方根のひとつ。存在しなければ `None`。
+            /// **法が素数であることを仮定する** (Tonelli-Shanks)。
+            ///
+            /// 解が2つある場合にどちらを返すかは決めていない。
+            /// もう一方は `-r` で得られる。
+            pub fn sqrt(self) -> Option<Self> {
+                let m = Self::modulus();
+                if m == 2 || self.val <= 1 {
+                    return Some(self);
+                }
+                let one = Self::new(1u32);
+                // オイラーの規準。平方非剰余なら解なし
+                if self.pow(((m - 1) / 2) as u64) != one {
+                    return None;
+                }
+                // m - 1 = q * 2^s (q は奇数)
+                let mut q = m - 1;
+                let mut s = 0u32;
+                while q % 2 == 0 {
+                    q /= 2;
+                    s += 1;
+                }
+                if s == 1 {
+                    return Some(self.pow(((m + 1) / 4) as u64));
+                }
+                // 平方非剰余をひとつ見つける
+                let mut z = Self::new(2u32);
+                while z.pow(((m - 1) / 2) as u64) == one {
+                    z += one;
+                }
+                let mut level = s;
+                let mut c = z.pow(q as u64);
+                let mut t = self.pow(q as u64);
+                let mut r = self.pow(q.div_ceil(2) as u64);
+                while t != one {
+                    // t^(2^i) = 1 となる最小の i を探す
+                    let mut i = 0u32;
+                    let mut t2 = t;
+                    while t2 != one {
+                        t2 *= t2;
+                        i += 1;
+                    }
+                    let b = c.pow(1u64 << (level - i - 1));
+                    level = i;
+                    c = b * b;
+                    t *= c;
+                    r *= b;
+                }
+                Some(r)
+            }
+
             /// 乗法逆元。法と互いに素でないとパニックする。
             /// 法が素数でなくても互いに素なら求まる。
             pub fn inv(self) -> Self {
@@ -547,6 +598,47 @@ mod tests {
 
     fn gcd(a: i64, b: i64) -> i64 {
         if b == 0 { a } else { gcd(b, a % b) }
+    }
+
+    #[test]
+    fn sqrt_matches_square() {
+        // 平方剰余なら r^2 == x、非剰余なら None
+        let mut found = 0;
+        for x in 0..200u32 {
+            let v = Mi::new(x);
+            match v.sqrt() {
+                Some(r) => {
+                    assert_eq!(r * r, v, "x = {x}");
+                    found += 1;
+                }
+                None => {
+                    // 非剰余であることをオイラーの規準で確認
+                    assert_ne!(v.pow((P - 1) / 2), Mi::new(1u32), "x = {x}");
+                }
+            }
+        }
+        assert!(found > 50, "平方剰余が少なすぎる: {found}");
+    }
+
+    #[test]
+    fn sqrt_on_small_primes() {
+        // s = 1 の分岐 (p ≡ 3 mod 4)
+        type M7 = ModInt<7>;
+        for x in 0..7u32 {
+            let v = M7::new(x);
+            if let Some(r) = v.sqrt() {
+                assert_eq!(r * r, v, "x = {x} mod 7");
+            }
+        }
+        // s > 1 の分岐 (p ≡ 1 mod 8)
+        type M17 = ModInt<17>;
+        for x in 0..17u32 {
+            let v = M17::new(x);
+            if let Some(r) = v.sqrt() {
+                assert_eq!(r * r, v, "x = {x} mod 17");
+            }
+        }
+        assert!(M7::new(3u32).sqrt().is_none());
     }
 
     /// modint 自体はモノイドではなく、`Sum` / `Prod` で包んで使う。
