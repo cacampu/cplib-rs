@@ -13,6 +13,7 @@ prim = { path = "crates/core/prim" }
 algebra = { path = "crates/core/algebra" }
 modint = { path = "crates/math/modint" }
 convolution = { path = "crates/math/convolution" }
+fps = { path = "crates/math/fps" }
 segtree = { path = "crates/sequence/segtree" }
 prefix-sum = { path = "crates/sequence/prefix-sum" }
 
