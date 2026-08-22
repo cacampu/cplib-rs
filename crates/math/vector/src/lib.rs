@@ -2,8 +2,11 @@ use prim::IntN;
 use std::{
     array,
     cmp::Ordering,
+    error::Error,
+    fmt,
     iter::Sum,
     ops::{Add, AddAssign, Deref, DerefMut, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+    str::FromStr,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -169,6 +172,14 @@ impl<T> Vector<T, 2>
 where
     T: Mul<Output = T> + Sub<Output = T> + Ord + Default + Copy,
 {
+    /// 偏角で比較する。`sort_by(Vector::argcmp)` で偏角ソートになる。
+    ///
+    /// 偏角 0 (正の x 軸) を始点に反時計回り、範囲は `[0, 2π)`。
+    /// 上半分 (`y > 0` または `y == 0 && x >= 0`) を先に置き、
+    /// 同じ半平面内は外積の符号で比較するので、三角関数を使わず整数演算で完結する。
+    ///
+    /// 向きが同じベクトルは長さによらず `Equal`。零ベクトルは偏角 0 と同じ扱いになり、
+    /// 上半分のすべてのベクトルと `Equal` になるため、全順序が必要なら事前に除いておくこと。
     pub fn argcmp(&self, rhs: &Self) -> Ordering {
         let [ax, ay] = self.0;
         let [bx, by] = rhs.0;
@@ -179,6 +190,53 @@ where
     }
 }
 
+/// `Vector<T, N>` のパースに失敗した理由。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseVectorError<E> {
+    /// 空白区切りの要素数が `N` と一致しなかった。
+    Arity { expected: usize, found: usize },
+    /// 要素の `FromStr` が失敗した。
+    Element(E),
+}
+
+impl<E: fmt::Display> fmt::Display for ParseVectorError<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Arity { expected, found } => {
+                write!(f, "expected {expected} elements, found {found}")
+            }
+            Self::Element(e) => write!(f, "invalid element: {e}"),
+        }
+    }
+}
+
+impl<E: Error + 'static> Error for ParseVectorError<E> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Arity { .. } => None,
+            Self::Element(e) => Some(e),
+        }
+    }
+}
+
+/// 空白区切りの `N` 要素からパースする。`"1 2 3".parse::<Vector<i64, 3>>()` のように使う。
+impl<T: FromStr, const N: usize> FromStr for Vector<T, N> {
+    type Err = ParseVectorError<T::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let values = s
+            .split_ascii_whitespace()
+            .map(T::from_str)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ParseVectorError::Element)?;
+        let found = values.len();
+        let array = values
+            .try_into()
+            .map_err(|_| ParseVectorError::Arity { expected: N, found })?;
+        Ok(Self(array))
+    }
+}
+
 impl<T: Copy, const N: usize> IntN<N> for Vector<T, N>
 where
     [T; N]: IntN<N>,
@@ -186,5 +244,51 @@ where
     #[inline]
     fn to_isizes(self) -> [isize; N] {
         self.0.to_isizes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_whitespace_separated() {
+        assert_eq!("1 -2".parse::<Vector<i64>>(), Ok(Vector([1, -2])));
+        assert_eq!(
+            "  3\t4\n5 ".parse::<Vector<i64, 3>>(),
+            Ok(Vector([3, 4, 5]))
+        );
+        assert_eq!("2.5 0.5".parse::<Vector<f64>>(), Ok(Vector([2.5, 0.5])));
+    }
+
+    #[test]
+    fn rejects_wrong_arity() {
+        assert_eq!(
+            "1 2 3".parse::<Vector<i64>>(),
+            Err(ParseVectorError::Arity {
+                expected: 2,
+                found: 3
+            })
+        );
+        assert_eq!(
+            "1".parse::<Vector<i64>>(),
+            Err(ParseVectorError::Arity {
+                expected: 2,
+                found: 1
+            })
+        );
+        assert_eq!(
+            "".parse::<Vector<i64>>(),
+            Err(ParseVectorError::Arity {
+                expected: 2,
+                found: 0
+            })
+        );
+    }
+
+    #[test]
+    fn reports_element_error() {
+        let err = "1 x".parse::<Vector<i64>>().unwrap_err();
+        assert!(matches!(err, ParseVectorError::Element(_)));
     }
 }
