@@ -9,6 +9,28 @@ use std::{
     str::FromStr,
 };
 
+/// 固定長 `N` の数ベクトル。`N` を省略すると 2 次元。
+///
+/// 初期化は用途に応じて選ぶ:
+///
+/// ```
+/// use vector::Vector;
+/// type V2 = Vector<i64, 2>;
+///
+/// let a = Vector([1, 2]);        // 配列をそのまま包む
+/// let b = V2::new(1, 2);         // 要素を並べる (N = 1..=4)
+/// let c = V2::from([1, 2]);      // From<[T; N]>
+/// let d: V2 = (1, 2).into();     // From<(T, T)> (N = 2, 3)
+/// let e = V2::splat(1);          // 全要素同じ値
+/// let f = V2::from_fn(|i| i as i64 + 1);
+/// let g = V2::default();         // 零ベクトル
+/// let h = "1 2".parse::<V2>().unwrap();
+/// # let _ = (a, b, c, d, e, f, g, h);
+/// ```
+///
+/// 型エイリアス経由で `V2([1, 2])` とは**書けない**。`type` はタプル構造体の
+/// コンストラクタ (値名前空間) を別名にしないため。`V2::new` / `V2::from` を使うか、
+/// 型引数を固定しないなら `use vector::Vector as V;` で `V([1, 2])` と書く。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Vector<T, const N: usize = 2>(pub [T; N]);
 
@@ -27,6 +49,79 @@ impl<T, const N: usize> Deref for Vector<T, N> {
 impl<T, const N: usize> DerefMut for Vector<T, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl<T, const N: usize> Vector<T, N> {
+    /// 添字から各要素を作る。`Vector::<i64, 3>::from_fn(|i| i as i64)` → `[0, 1, 2]`。
+    pub fn from_fn(f: impl FnMut(usize) -> T) -> Self {
+        Self(array::from_fn(f))
+    }
+
+    /// 全要素を同じ値で埋める。
+    pub fn splat(x: T) -> Self
+    where
+        T: Copy,
+    {
+        Self([x; N])
+    }
+
+    /// 各要素に関数を適用する。要素の型を変えられる。
+    pub fn map<U>(self, f: impl FnMut(T) -> U) -> Vector<U, N> {
+        Vector(self.0.map(f))
+    }
+}
+
+/// 要素を並べて書くコンストラクタ。低次元でだけ提供する。
+macro_rules! impl_new {
+    ($($n:literal => ($($arg:ident),*)),* $(,)?) => {$(
+        impl<T> Vector<T, $n> {
+            pub fn new($($arg: T),*) -> Self { Self([$($arg),*]) }
+        }
+    )*};
+}
+impl_new!(1 => (x), 2 => (x, y), 3 => (x, y, z), 4 => (x, y, z, w));
+
+impl<T> From<(T, T)> for Vector<T, 2> {
+    fn from((x, y): (T, T)) -> Self {
+        Self([x, y])
+    }
+}
+
+impl<T> From<Vector<T, 2>> for (T, T) {
+    fn from(Vector([x, y]): Vector<T, 2>) -> Self {
+        (x, y)
+    }
+}
+
+impl<T> From<(T, T, T)> for Vector<T, 3> {
+    fn from((x, y, z): (T, T, T)) -> Self {
+        Self([x, y, z])
+    }
+}
+
+impl<T> From<Vector<T, 3>> for (T, T, T) {
+    fn from(Vector([x, y, z]): Vector<T, 3>) -> Self {
+        (x, y, z)
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for Vector<T, N> {
+    fn from(array: [T; N]) -> Self {
+        Self(array)
+    }
+}
+
+impl<T, const N: usize> From<Vector<T, N>> for [T; N] {
+    fn from(Vector(array): Vector<T, N>) -> Self {
+        array
+    }
+}
+
+/// 零ベクトル。`Vector::<i64>::default()` あるいは `V2::default()`。
+impl<T: Default, const N: usize> Default for Vector<T, N> {
+    fn default() -> Self {
+        Self(array::from_fn(|_| T::default()))
     }
 }
 
@@ -250,6 +345,32 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    type V2 = Vector<i64, 2>;
+
+    #[test]
+    fn constructs_various_ways() {
+        let expected = Vector([1, 2]);
+        assert_eq!(V2::new(1, 2), expected);
+        assert_eq!(V2::from([1, 2]), expected);
+        assert_eq!(V2::from((1, 2)), expected);
+        assert_eq!(<[i64; 2]>::from(expected), [1, 2]);
+        assert_eq!(<(i64, i64)>::from(expected), (1, 2));
+        assert_eq!(V2::from_fn(|i| i as i64 + 1), expected);
+        assert_eq!(V2::splat(1), Vector([1, 1]));
+        assert_eq!(V2::default(), Vector([0, 0]));
+        assert_eq!(Vector::<i64, 3>::new(1, 2, 3), Vector([1, 2, 3]));
+        assert_eq!(Vector::<i64, 4>::new(1, 2, 3, 4), Vector([1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn maps_elements() {
+        assert_eq!(Vector([1i64, -2]).map(|x| x.abs()), Vector([1, 2]));
+        assert_eq!(
+            Vector([1i64, 2]).map(|x| x as f64 / 2.0),
+            Vector([0.5, 1.0])
+        );
+    }
 
     #[test]
     fn parses_whitespace_separated() {
