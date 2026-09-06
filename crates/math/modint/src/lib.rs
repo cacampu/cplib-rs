@@ -8,6 +8,13 @@
 //! `algebra::Sum<ModInt<M>>` や `algebra::Prod<ModInt<M>>` として表す。
 //! `Add` / `Mul` と `Zero` / `One` を実装しているため、algebra 側の blanket impl が
 //! そのまま適用され、SegTree などに追加の実装なしで載る。
+//!
+//! プリミティブ整数型 (`u8`..`u128`, `i8`..`i128`, `usize`, `isize`) との四則演算も
+//! 左右どちらの順でも書ける (`x * 2`, `2 - x`, `x /= 3` など)。整数側は剰余を取ってから
+//! 演算するので、負数や法より大きい値でも正しい。
+//! ただし整数型ごとに impl を並べている都合上、演算結果に直接メソッドを呼ぶ
+//! `(x + 5).val()` のような式ではリテラルの型が決まらずエラーになる。
+//! `(x + 5u32).val()` のように接尾辞を付けるか、いったん束縛すればよい。
 
 use std::cell::Cell;
 use std::fmt;
@@ -378,6 +385,9 @@ macro_rules! impl_modint_common {
 
         impl_modint_common!(@from $ty, $param, $ptype,
             u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+
+        impl_modint_common!(@scalar $ty, $param, $ptype,
+            u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
     };
 
     (@assign $ty:ident, $param:ident, $ptype:ty, $trait:ident, $method:ident, $op:tt) => {
@@ -423,6 +433,57 @@ macro_rules! impl_modint_common {
             }
         }
     )*};
+
+    (@scalar $ty:ident, $param:ident, $ptype:ty, $($t:ty),*) => {$(
+        impl_modint_common!(@scalar_ops $ty, $param, $ptype, $t, Add, add, AddAssign, add_assign);
+        impl_modint_common!(@scalar_ops $ty, $param, $ptype, $t, Sub, sub, SubAssign, sub_assign);
+        impl_modint_common!(@scalar_ops $ty, $param, $ptype, $t, Mul, mul, MulAssign, mul_assign);
+        impl_modint_common!(@scalar_ops $ty, $param, $ptype, $t, Div, div, DivAssign, div_assign);
+    )*};
+
+    // 整数側は `new` で剰余を取ってから通常の演算に落とす。
+    // 整数を左辺に置く形 (`2 * x`) は孤児則の範囲内 (右辺がローカル型) なので書ける。
+    (@scalar_ops $ty:ident, $param:ident, $ptype:ty, $t:ty,
+     $trait:ident, $method:ident, $atrait:ident, $amethod:ident) => {
+        impl<const $param: $ptype> $trait<$t> for $ty<$param> {
+            type Output = $ty<$param>;
+            #[inline]
+            fn $method(self, rhs: $t) -> $ty<$param> {
+                $trait::$method(self, <$ty<$param>>::new(rhs))
+            }
+        }
+
+        impl<const $param: $ptype> $trait<$t> for &$ty<$param> {
+            type Output = $ty<$param>;
+            #[inline]
+            fn $method(self, rhs: $t) -> $ty<$param> {
+                $trait::$method(*self, <$ty<$param>>::new(rhs))
+            }
+        }
+
+        impl<const $param: $ptype> $trait<$ty<$param>> for $t {
+            type Output = $ty<$param>;
+            #[inline]
+            fn $method(self, rhs: $ty<$param>) -> $ty<$param> {
+                $trait::$method(<$ty<$param>>::new(self), rhs)
+            }
+        }
+
+        impl<const $param: $ptype> $trait<&$ty<$param>> for $t {
+            type Output = $ty<$param>;
+            #[inline]
+            fn $method(self, rhs: &$ty<$param>) -> $ty<$param> {
+                $trait::$method(<$ty<$param>>::new(self), *rhs)
+            }
+        }
+
+        impl<const $param: $ptype> $atrait<$t> for $ty<$param> {
+            #[inline]
+            fn $amethod(&mut self, rhs: $t) {
+                *self = $trait::$method(*self, <$ty<$param>>::new(rhs));
+            }
+        }
+    };
 }
 
 impl_modint_common!(ModInt, M, u32);
@@ -572,6 +633,54 @@ mod tests {
         assert_eq!((&a + &b).val(), 8);
         assert_eq!((a + &b).val(), 8);
         assert_eq!((&a * b).val(), 12);
+    }
+
+    /// 整数リテラル・整数型との混合演算。左右どちらに置いても書ける。
+    #[test]
+    #[allow(clippy::op_ref)]
+    fn ops_with_primitive_integers() {
+        let a = Mi::new(10u32);
+        assert_eq!(a + 5, Mi::new(15u32));
+        assert_eq!(5 + a, Mi::new(15u32));
+        assert_eq!(a - 15, Mi::new(-5i64));
+        assert_eq!(5 - a, Mi::new(-5i64));
+        assert_eq!(a * 3, Mi::new(30u32));
+        assert_eq!(3 * a, Mi::new(30u32));
+        assert_eq!(a / 4, Mi::new(10u32) * Mi::new(4u32).inv());
+        assert_eq!(4 / a, Mi::new(4u32) * a.inv());
+
+        // 参照どうし・整数型のバリエーション
+        assert_eq!(&a + 5u64, Mi::new(15u32));
+        assert_eq!(5usize + &a, Mi::new(15u32));
+        assert_eq!(a + (-1i32), Mi::new(9u32));
+        assert_eq!(a * u64::MAX, a * Mi::new(u64::MAX));
+
+        // 複合代入
+        let mut b = Mi::new(1u32);
+        b += 10;
+        assert_eq!(b.val(), 11);
+        b -= 3u8;
+        assert_eq!(b.val(), 8);
+        b *= 2i64;
+        assert_eq!(b.val(), 16);
+        b /= 4;
+        assert_eq!(b.val(), 4);
+    }
+
+    #[test]
+    fn dynamic_ops_with_primitive_integers() {
+        type D = DynamicModInt<6>;
+        D::set_modulus(13);
+        let a = D::new(10u32);
+        // 演算結果に直接メソッドを呼ぶ場合はリテラルに型が必要 (モジュールドキュメント参照)
+        assert_eq!((a + 5u32).val(), 2);
+        assert_eq!((5u32 + a).val(), 2);
+        assert_eq!((5u32 - a).val(), 8);
+        assert_eq!((3u32 * a).val(), 30 % 13);
+        assert_eq!(a + 5, D::new(2u32));
+        let mut b = a;
+        b *= 2;
+        assert_eq!(b.val(), 20 % 13);
     }
 
     #[test]
