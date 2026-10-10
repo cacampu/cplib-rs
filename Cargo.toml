@@ -20,6 +20,7 @@ slope-trick = { path = "crates/optimization/slope-trick" }
 convex-hull-trick = { path = "crates/optimization/convex-hull-trick" }
 alien-trick = { path = "crates/optimization/alien-trick" }
 graph = { path = "crates/graph/graph" }
+shortest-path = { path = "crates/graph/shortest-path" }
 hld = { path = "crates/graph/hld" }
 scc = { path = "crates/graph/scc" }
 
