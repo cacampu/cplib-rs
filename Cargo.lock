@@ -60,10 +60,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "graph"
+version = "0.1.0"
+dependencies = [
+ "algebra",
+]
+
+[[package]]
 name = "grid"
 version = "0.1.0"
 dependencies = [
  "prim",
+]
+
+[[package]]
+name = "hld"
+version = "0.1.0"
+dependencies = [
+ "graph",
 ]
 
 [[package]]
@@ -185,6 +199,13 @@ dependencies = [
 [[package]]
 name = "rerooting-dp"
 version = "0.1.0"
+
+[[package]]
+name = "scc"
+version = "0.1.0"
+dependencies = [
+ "graph",
+]
 
 [[package]]
 name = "segtree"

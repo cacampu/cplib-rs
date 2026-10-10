@@ -271,13 +271,16 @@ impl ConvexConjugate {
         self.min_f += c;
     }
 
-    /// 差分 `d` を1つ挿入する: 2点の関数 `h(0)=0, h(1)=d` との
-    /// min-plus 畳み込み (`g(x) = min(f(x), f(x-1)+d)`) を行う。
-    /// 定義域が1点増える。`O(log N)`。
+    /// 差分 `d` を1つ挿入する (`g(x) = min(f(x), f(x-1)+d)` との合成)。定義域が
+    /// 1点増える。`O(log N)`。
     ///
-    /// `min_f` の更新が `+= d.min(0)` だけで済むのは、`f` の最小値が
-    /// `min_f` であることから、畳み込み後の最小値が
-    /// `min(min_f + h(0), min_f + h(1)) = min_f + min(0, d)` に一致するため。
+    /// ```
+    /// use slope_trick::ConvexConjugate;
+    /// let mut cc = ConvexConjugate::new();
+    /// cc.insert(5);
+    /// cc.insert(-3);
+    /// assert_eq!(cc.min(), -3);
+    /// ```
     pub fn insert(&mut self, d: i64) {
         self.min_f += d.min(0);
         if d <= 0 {
@@ -301,16 +304,14 @@ impl ConvexConjugate {
             return self.min_f;
         }
         if k > 0 {
-            // `BinaryHeap<Reverse<i64>>::into_sorted_vec` は Reverse の順序で
-            // 昇順、つまり元の値では降順になるので反転して昇順に直す。
+            // into_sorted_vec は Reverse の昇順 = 元の値の降順なので反転する。
             let mut sorted = self.pos.clone().into_sorted_vec();
             sorted.reverse();
             let k = k as usize;
             assert!(k <= sorted.len(), "offset out of range");
             self.min_f + sorted[..k].iter().map(|&Reverse(v)| v).sum::<i64>()
         } else {
-            // neg は値が小さい (より負) ほど argmin から遠い。
-            // argmin に近い方から足すには降順 (大きい方から) に取る。
+            // argmin に近い (= 0 に近い) 順に足すため降順に取る。
             let mut sorted = self.neg.clone().into_sorted_vec();
             sorted.reverse();
             let k = (-k) as usize;
