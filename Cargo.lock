@@ -62,9 +62,6 @@ dependencies = [
 [[package]]
 name = "graph"
 version = "0.1.0"
-dependencies = [
- "algebra",
-]
 
 [[package]]
 name = "grid"
@@ -217,6 +214,14 @@ dependencies = [
 [[package]]
 name = "shakutori"
 version = "0.1.0"
+
+[[package]]
+name = "shortest-path"
+version = "0.1.0"
+dependencies = [
+ "algebra",
+ "graph",
+]
 
 [[package]]
 name = "slope-trick"
