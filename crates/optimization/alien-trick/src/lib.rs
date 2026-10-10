@@ -11,14 +11,15 @@
 //!
 //! 参考: <https://noshi91.hatenablog.com/entry/2023/11/20/052227>
 
-/// パターン1: 呼び出し側が `solver(p)` として `(G(p), k)` の両方を返す場合。
+/// `solver(p)` が `(G(p), k)` を返す場合。`k` は `p` について単調非増加であること
+/// (タイは大きい方の `k` を返すと安全)。`O(log(p_hi-p_lo))` 回 `solver` を呼ぶ。
 ///
-/// `k` は「ペナルティ `p` のもとでの最適解が達成する要素数」のうち
-/// いずれか一つでよいが、**`p` に関して単調非増加**であるように選ぶこと
-/// (複数の `k` が同じ値を達成する場合は大きい方の `k` を返すのが安全)。
-///
-/// `[p_lo, p_hi]` の範囲を整数二分探索し、`O(log(p_hi-p_lo))` 回 `solver`
-/// を呼ぶ。
+/// ```
+/// use alien_trick::solve_with_count;
+/// // F(k) = (k-2)^2 (0<=k<=5) の F(3) を求める。
+/// let solver = |p: i64| (0..=5).map(|k| ((k - 2) * (k - 2) + p * k, k)).min().unwrap();
+/// assert_eq!(solve_with_count(3, -100, 100, solver), 1);
+/// ```
 pub fn solve_with_count(
     target: i64,
     mut p_lo: i64,
@@ -39,11 +40,14 @@ pub fn solve_with_count(
     g - p_lo * target
 }
 
-/// パターン2: 呼び出し側が `solver(p)` として `G(p)` だけを返す場合。
+/// `solver(p)` が `G(p)` だけを返す場合。`k = G(p+1) - G(p)` を自前で計算して
+/// 二分探索する。`solver` の呼び出し回数は [`solve_with_count`] の2倍になる。
 ///
-/// 要素数 `k` を呼び出し側から受け取らず、`k = G(p+1) - G(p)`
-/// (離散的な傾き) を自前で計算して二分探索する。`solver` を1回の
-/// 傾き計算あたり2回呼ぶため、パターン1の2倍の呼び出し回数になる。
+/// ```
+/// use alien_trick::solve_by_slope;
+/// let solver = |p: i64| (0..=5).map(|k| (k - 2) * (k - 2) + p * k).min().unwrap();
+/// assert_eq!(solve_by_slope(3, -100, 100, solver), 1);
+/// ```
 pub fn solve_by_slope(
     target: i64,
     mut p_lo: i64,
@@ -63,16 +67,15 @@ pub fn solve_by_slope(
     solver(p_lo) - p_lo * target
 }
 
-/// パターン3: 呼び出し側が `solver(p)` として `G(p)` だけを返す場合に、
-/// 要素数 `k` を一切利用せず、`h(p) = G(p) - p * target` を黄金分割探索で
-/// 直接最大化する。
+/// `solver(p)` が `G(p)` だけを返す場合に、`k` を使わず `h(p) = G(p) - p*target`
+/// を黄金分割探索で直接最大化する。`G` が凹であることだけが条件で、タイ処理が
+/// 不要なぶん [`solve_by_slope`] より組み込みやすい。`iterations` は100回程度で十分。
 ///
-/// `G` が凹 (`f` の最小化問題) であれば `h` も凹なので、三分探索より
-/// 評価回数の少ない黄金分割探索が使える。`target` ちょうどを達成する `k`
-/// の計算が不要なため、タイの処理などを気にせずライブラリ化しやすい。
-///
-/// `iterations` 回だけ区間を縮める (目安: 浮動小数点で十分な精度を得るには
-/// 100 回程度で十分)。
+/// ```
+/// use alien_trick::solve_by_golden_section;
+/// let solver = |p: f64| (0..=5i64).map(|k| (k - 2).pow(2) as f64 + p * k as f64).fold(f64::INFINITY, f64::min);
+/// assert!((solve_by_golden_section(3.0, -100.0, 100.0, 200, solver) - 1.0).abs() < 1e-6);
+/// ```
 pub fn solve_by_golden_section(
     target: f64,
     mut lo: f64,

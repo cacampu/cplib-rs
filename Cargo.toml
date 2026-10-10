@@ -19,6 +19,9 @@ prefix-sum = { path = "crates/sequence/prefix-sum" }
 slope-trick = { path = "crates/optimization/slope-trick" }
 convex-hull-trick = { path = "crates/optimization/convex-hull-trick" }
 alien-trick = { path = "crates/optimization/alien-trick" }
+graph = { path = "crates/graph/graph" }
+hld = { path = "crates/graph/hld" }
+scc = { path = "crates/graph/scc" }
 
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
