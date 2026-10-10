@@ -485,7 +485,7 @@ mod tests {
         check!(Gcd::<u64>::new());
     }
 
-    /// `PrefixSum::from_slice` などが要求する `Group + Default` を満たす型。
+    /// `G::default()` だけで群を構築できる型。
     #[test]
     fn group_and_default_impls() {
         fn assert_group_default<G: Group + Default>() {}
