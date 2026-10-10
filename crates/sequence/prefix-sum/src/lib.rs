@@ -1,6 +1,6 @@
-use std::ops::{Bound, RangeBounds};
+use std::ops::{Add, Bound, RangeBounds, Sub};
 
-use algebra::Group;
+use algebra::{Group, Sum, Zero};
 
 /// 群 `G` 上の累積和。構築 `O(n)`、区間積 `O(1)`。
 ///
@@ -83,22 +83,32 @@ impl<G: Group> PrefixSum<G> {
     }
 }
 
-impl<G: Group + Default> PrefixSum<G> {
-    /// 単位元・演算が型から決まる群(`Sum` など)用のショートカット。
-    pub fn from_slice(values: &[G::T]) -> Self {
-        Self::new(values.iter().cloned(), G::default())
+impl<T> PrefixSum<Sum<T>>
+where
+    T: Clone + Zero + Add<Output = T> + Sub<Output = T>,
+{
+    /// 加算による累積和 (もっとも使うケースなので型引数なしで書ける)。
+    ///
+    /// ```
+    /// use prefix_sum::PrefixSum;
+    /// let a = vec![1, 2, 3, 4, 5];
+    /// let s = PrefixSum::from_slice(&a);
+    /// assert_eq!(s.prod(1..4), 9);
+    /// ```
+    pub fn from_slice(values: &[T]) -> Self {
+        Self::new(values.iter().cloned(), Sum::new())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use algebra::{FnGroup, Sum, Xor};
+    use algebra::{FnGroup, Xor};
 
     #[test]
     fn prod_matches_naive() {
         let a = [1i64, 2, 3, 4, 5];
-        let ps = PrefixSum::<Sum<i64>>::from_slice(&a);
+        let ps = PrefixSum::from_slice(&a);
         assert_eq!(ps.len(), 5);
         assert_eq!(ps.cum(), [0, 1, 3, 6, 10, 15]);
         for l in 0..=a.len() {
@@ -128,11 +138,11 @@ mod tests {
         PrefixSum::new(0..100i64, Sum::<i64>::new()).prod(50..200);
     }
 
-    /// `Group + Default` を満たすので from_slice が使える。累積 xor。
+    /// `from_slice` は `Sum` 専用なので、他の群は `new` に `Default` 実装を渡す。累積 xor。
     #[test]
     fn prefix_xor() {
         let a = [0b1100u64, 0b1010, 0b0110, 0b0001];
-        let ps = PrefixSum::<Xor<u64>>::from_slice(&a);
+        let ps = PrefixSum::new(a.iter().copied(), Xor::default());
         for l in 0..=a.len() {
             for r in l..=a.len() {
                 let expected = a[l..r].iter().fold(0, |acc, x| acc ^ x);
@@ -143,10 +153,10 @@ mod tests {
 
     #[test]
     fn unsigned_and_empty() {
-        let ps = PrefixSum::<Sum<usize>>::from_slice(&[3, 1, 4, 1, 5]);
+        let ps = PrefixSum::from_slice(&[3usize, 1, 4, 1, 5]);
         assert_eq!(ps.prod(1..4), 6);
 
-        let empty = PrefixSum::<Sum<i64>>::from_slice(&[]);
+        let empty: PrefixSum<Sum<i64>> = PrefixSum::from_slice(&[]);
         assert!(empty.is_empty());
         assert_eq!(empty.prod(..), 0);
         assert_eq!(empty.all_prod(), 0);
