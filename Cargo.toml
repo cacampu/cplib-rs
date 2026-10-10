@@ -16,6 +16,9 @@ convolution = { path = "crates/math/convolution" }
 fps = { path = "crates/math/fps" }
 segtree = { path = "crates/sequence/segtree" }
 prefix-sum = { path = "crates/sequence/prefix-sum" }
+slope-trick = { path = "crates/optimization/slope-trick" }
+convex-hull-trick = { path = "crates/optimization/convex-hull-trick" }
+alien-trick = { path = "crates/optimization/alien-trick" }
 
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
