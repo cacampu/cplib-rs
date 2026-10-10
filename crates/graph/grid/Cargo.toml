@@ -6,3 +6,4 @@ license.workspace = true
 
 [dependencies]
 prim.workspace = true
+dir.workspace = true

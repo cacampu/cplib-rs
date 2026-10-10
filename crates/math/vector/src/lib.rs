@@ -1,4 +1,5 @@
-use prim::IntN;
+use dir::Dir;
+use prim::{Int, IntN};
 use std::{
     array,
     cmp::Ordering,
@@ -339,6 +340,21 @@ where
     #[inline]
     fn to_isizes(self) -> [isize; N] {
         self.0.to_isizes()
+    }
+}
+
+/// `dir::Dir` との加算。グリッド探索で `pos + Dir::U` のように使う。
+///
+/// ```
+/// use dir::Dir;
+/// use vector::Vector;
+/// let pos = Vector::<usize, 2>::new(3, 3);
+/// assert_eq!(pos + Dir::U, Vector::<isize, 2>::new(2, 3));
+/// ```
+impl<T: Int> Add<Dir> for Vector<T, 2> {
+    type Output = Vector<isize, 2>;
+    fn add(self, rhs: Dir) -> Vector<isize, 2> {
+        Vector(self.0.add(rhs))
     }
 }
 
