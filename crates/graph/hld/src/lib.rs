@@ -203,7 +203,7 @@ mod tests {
         let mut seen = vec![false; g.len()];
         seen[root] = true;
         while let Some(u) = stack.pop() {
-            for (v, _) in g.edges(u) {
+            for &(v, _) in g.edges(u) {
                 if !seen[v] {
                     seen[v] = true;
                     parent[v] = u;
