@@ -1,5 +1,5 @@
 use grid::Grid;
-use io::{LineSource, Scanner, input};
+use io::{InputBuffer, LineSource, Scanner, input};
 
 #[test]
 fn numeric_grid_consumes_exactly_its_cells() {
@@ -28,4 +28,15 @@ fn character_and_byte_grids_work_with_both_sources() {
 #[should_panic(expected = "grid row width mismatch")]
 fn wrong_row_width_is_rejected() {
     Grid::read_chars(1, 2, &mut Scanner::new("abc"));
+}
+
+#[test]
+fn shared_grid_source_releases_the_lock_between_reads() {
+    let buffer = InputBuffer::from(Scanner::new("2 3 1 2 3 4 5 6 ab cd .# #. 99"));
+    let (h, w) = input!(from & buffer, (usize, usize));
+    let numbers = Grid::<i64>::read(h, w, &buffer);
+    assert_eq!(numbers.inner, [1, 2, 3, 4, 5, 6]);
+    assert_eq!(Grid::read_chars(2, 2, &buffer).inner, ['a', 'b', 'c', 'd']);
+    assert_eq!(Grid::read_bytes(2, 2, &buffer).inner, b".##.");
+    assert_eq!(buffer.read::<usize>(), 99);
 }

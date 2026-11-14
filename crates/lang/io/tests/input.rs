@@ -1,5 +1,5 @@
 use io::marker::{Bytes, Chars, Token, Usize1};
-use io::{LineSource, Readable, RuntimeReadable, Scanner, Source, input, read_value};
+use io::{InputBuffer, LineSource, Readable, RuntimeReadable, Scanner, Source, input, read_value};
 
 #[test]
 fn declarations_expressions_arrays_tuples_and_markers() {
@@ -96,4 +96,40 @@ fn sources_agree_across_blank_lines_and_eof() {
 #[should_panic(expected = "unexpected EOF")]
 fn missing_input_has_context() {
     input!(from &mut Scanner::new(""), i32);
+}
+
+#[test]
+fn shared_buffer_interleaves_macro_direct_and_helper_reads() {
+    fn pair(buffer: &InputBuffer) -> (i64, i64) {
+        buffer.read::<(i64, i64)>()
+    }
+    let buffer = InputBuffer::from(Scanner::new("1 2 3 4 5 6 7 8"));
+    input! { from &buffer, first: i64 }
+    assert_eq!(first, 1);
+    assert_eq!(pair(&buffer), (2, 3));
+    assert_eq!(input!(from & buffer, [i64; 2]), [4, 5]);
+    input! { from &buffer, sixth: i64, last: (i64, i64) }
+    assert_eq!((sixth, last), (6, (7, 8)));
+    assert!(buffer.lock().is_empty());
+}
+
+#[test]
+fn shared_buffer_reads_each_compound_value_under_one_lock() {
+    let data = (0..100)
+        .map(|i| format!("{i} {i}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let buffer = InputBuffer::from(Scanner::new(data));
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            let buffer = &buffer;
+            scope.spawn(move || {
+                for _ in 0..25 {
+                    let (a, b) = buffer.read::<(usize, usize)>();
+                    assert_eq!(a, b);
+                }
+            });
+        }
+    });
+    assert!(buffer.lock().is_empty());
 }

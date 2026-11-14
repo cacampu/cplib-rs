@@ -127,9 +127,13 @@ impl Parse for Input {
 impl Input {
     pub fn expand(self, runtime: &TokenStream) -> syn::Result<TokenStream> {
         let source = format_ident!("__cplib_source", span = Span::mixed_site());
+        let handle = format_ident!("__cplib_input", span = Span::mixed_site());
         let setup = match &self.source {
-            Some(expr) => quote!(let mut #source = &mut (#expr);),
-            None => quote!(let mut #source = #runtime::stdin();),
+            Some(expr) => quote!(
+                let mut #handle = #expr;
+                let mut #source = #runtime::InputSource::lock_source(&mut #handle);
+            ),
+            None => quote!(let mut #source = #runtime::INPUT.lock();),
         };
         Ok(match self.body {
             Body::Expression(kind) => {
@@ -142,11 +146,7 @@ impl Input {
                     let value = binding.kind.expand(runtime, &source);
                     quote!(let #pattern = #value;)
                 });
-                let release = self
-                    .source
-                    .is_none()
-                    .then(|| quote!(::std::mem::drop(#source);));
-                quote!(#setup #(#declarations)* #release)
+                quote!(#setup #(#declarations)* ::std::mem::drop(#source);)
             }
         })
     }

@@ -9,12 +9,14 @@ GitHub への push、依存更新ワークフロー、`cargo update` は不要�
 | エイリアス | 問題 | 見るところ |
 | --- | --- | --- |
 | `vector` | [ABC234 B](https://atcoder.jp/contests/abc234/tasks/abc234_b) | `type P = Vector<i64, 2>` と `a: [P; n]` |
-| `grid` | [ABC007 C](https://atcoder.jp/contests/abc007/tasks/abc007_3) | 入力バッファの明示取得、`Grid::read_bytes`、近傍を走査しながら距離を更新 |
-| `numeric-grid` | [ABC356 B](https://atcoder.jp/contests/abc356/tasks/abc356_b) | `Grid::read(h, w, &mut source)`、`all_pos()` |
+| `grid` | [ABC007 C](https://atcoder.jp/contests/abc007/tasks/abc007_3) | `Grid::read_bytes(h, w, &INPUT)`、近傍を走査しながら距離を更新 |
+| `numeric-grid` | [ABC356 B](https://atcoder.jp/contests/abc356/tasks/abc356_b) | 別関数から `Grid::read(h, w, &INPUT)`、`all_pos()` |
 | `multi-testcase` | [ARC163 A](https://atcoder.jp/contests/arc163/tasks/arc163_a) | ケース数を共通入力から読む属性、ケースごとの `return`、別関数からの出力 |
 
 これらは `cargo compete add` で追加し、公開サンプルを保存したもの。
 `src/main.rs` は問題に紐づかない試行用、`src/bin/io-runtime.rs` は出力共有の例。
+`src/bin/shared-input.rs` は `#[multi_testcase]` → `solve()` → グリッド読み取り関数へ
+処理を分けても `&INPUT` で同じバッファを使う例。入力元を引数に渡し回す必要はない。
 
 ## 使い方
 

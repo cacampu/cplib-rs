@@ -47,3 +47,14 @@ fn all_output_paths_share_one_buffer_in_order() {
         "main helper closure\nthread\n1 2 3\n"
     );
 }
+
+#[test]
+fn global_grid_input_can_cross_functions_and_testcases() {
+    assert_eq!(
+        run(
+            env!("CARGO_BIN_EXE_shared-input"),
+            "2 1 2 10 20 3 2 1 4 5 6"
+        ),
+        "33\n15\n"
+    );
+}

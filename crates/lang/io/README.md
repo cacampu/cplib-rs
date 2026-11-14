@@ -48,10 +48,30 @@ assert_eq!(points, [(1, 2), (3, 4)]);
 assert_eq!(input!(from &mut source, usize), 99);
 ```
 
-標準入力には `let mut source = io::stdin();` でアクセスできる。
-これは共通スキャナのロックガードで、そのまま入力元として渡せる。
-ガード保持中はデフォルトの `input!` で再ロックせず、`from &mut source` を使う。
-マクロの通常形式では、1回の呼び出しの終了時にロックを解放する。
+標準入力はライブラリ内の `pub static INPUT: InputBuffer` を共有する。
+`input!`、`input!(from &io::INPUT, ...)`、`io::INPUT.read::<T>()` はすべて同じ読み取り位置を使う。
+`Grid::read(h, w, &io::INPUT)` のように、各関数から同じバッファを直接渡せる。
+ロックは読み取り操作の間だけ保持し、ローカルのガードを関数間で渡し回す必要はない。
+
+```rust,ignore
+use io::{INPUT, input};
+fn solve() {
+    let (h, w) = input!((usize, usize));
+    let g = read_grid(h, w);
+    let next = INPUT.read::<usize>();
+}
+fn read_grid(h: usize, w: usize) -> grid::Grid<i64> {
+    grid::Grid::read(h, w, &INPUT)
+}
+```
+
+テスト用には `InputBuffer::from(Scanner::new("..."))` で独立した共有バッファも作れる。
+`InputSource` が共有バッファとローカルな入力元の違いを吸収し、低レベルの `Readable` は
+取得された `Source` から読む。複数トークンの値やグリッド全体は、1回のロックで読み取る。
+
+まとめてロックを保持したい場合には従来の `let mut source = io::stdin();` も使える。
+そのガード保持中だけは `from &mut source` を使い、同じバッファを再ロックしないこと。
+ローカル入力を再利用する場合も `from &mut source` と書く (`from source` は入力元をムーブする)。
 
 `Scanner` は入力を一括で読む。対話問題では次のように逐次入力元を明示する。
 
@@ -68,20 +88,20 @@ loop {
 ## Vector と Grid
 
 ```rust,ignore
+use io::INPUT;
 use vector::Vector;
 use grid::Grid;
 type P = Vector<i64, 2>;
 
 input! { n: usize, points: [P; n] } // 各 P が X と Y の2トークンを消費
-let mut source = io::stdin();
-let (h, w) = input!(from &mut source, (usize, usize));
-let numbers = Grid::<i64>::read(h, w, &mut source);
+let (h, w) = input!((usize, usize));
+let numbers = Grid::<i64>::read(h, w, &INPUT);
 // 別形式の入力ではこちらを使う:
-let letters = Grid::read_chars(h, w, &mut source); // .#.. のような行
-let bytes = Grid::read_bytes(h, w, &mut source);
+let letters = Grid::read_chars(h, w, &INPUT); // .#.. のような行
+let bytes = Grid::read_bytes(h, w, &INPUT);
 ```
 
-入力位置を進めるので入力元は `&mut`。読み取り中に別途グローバル入力を取得する必要はない。
+共有バッファには `&INPUT`、ローカルな `Scanner` / `LineSource` には `&mut source` を渡す。
 `Grid::read` は `h*w` 個の値を読み、改行位置には依存しない。
 `read_chars` / `read_bytes` は行ごとのトークン幅を検査する。
 

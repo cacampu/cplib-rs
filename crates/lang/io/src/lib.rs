@@ -2,6 +2,7 @@
 //!
 //! `input! { n: usize, a: [i64; n] }` と `let n = input!(usize)` の両形式を扱う。
 //! 任意の入力元には `input!(from &mut source, ...)` を使う。
+//! 共有の標準入力は `pub static INPUT`。`Grid::read(h, w, &INPUT)` などへ直接渡せる。
 //! `#[fastout]` / `#[multi_testcase]` は共通出力を関数終了時に flush する。
 
 extern crate self as io;
@@ -12,7 +13,10 @@ use std::io::{self as std_io, Write};
 mod input;
 mod output;
 
-pub use input::{LineSource, Readable, RuntimeReadable, Scanner, Source, read, stdin};
+pub use input::{
+    INPUT, InputBuffer, InputSource, LineSource, Readable, RuntimeReadable, Scanner, Source, read,
+    stdin,
+};
 pub use multi_testcase::{fastout, input, multi_testcase, read_value};
 #[doc(hidden)]
 pub use output::print_args as __print_args;
