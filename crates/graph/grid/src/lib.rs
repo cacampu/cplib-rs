@@ -18,6 +18,31 @@ pub struct Grid<T> {
     pub inner: Vec<T>,
 }
 
+/// グリッドを借用せず、行優先順に座標を返すイテレータ。
+/// コピーすると、その時点の走査位置から独立して走査できる。
+#[derive(Debug, Clone, Copy)]
+pub struct GridPositions {
+    size: [usize; 2],
+    next: [usize; 2],
+}
+
+impl Iterator for GridPositions {
+    type Item = [usize; 2];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next[0] >= self.size[0] || self.size[1] == 0 {
+            return None;
+        }
+        let point = self.next;
+        self.next[1] += 1;
+        if self.next[1] == self.size[1] {
+            self.next[0] += 1;
+            self.next[1] = 0;
+        }
+        Some(point)
+    }
+}
+
 #[inline]
 fn in_bounds<const N: usize>(coord: [isize; N], size: [usize; N]) -> bool {
     coord
@@ -42,11 +67,28 @@ impl<T> Grid<T> {
         in_bounds(point.to_isizes(), self.size)
     }
 
+    /// 全座標を行優先順に返す。呼び出し時のサイズをコピーし、`self` を借用しない。
+    ///
+    /// ```
+    /// use grid::Grid;
+    /// let mut g = Grid::new([2, 3], 0);
+    /// for p in g.all_pos() {
+    ///     g[p] += 5;
+    /// }
+    /// assert_eq!(g.inner, vec![5; 6]);
+    /// ```
+    pub fn all_pos(&self) -> GridPositions {
+        GridPositions {
+            size: self.size,
+            next: [0, 0],
+        }
+    }
+
     pub fn neighbors_custom<'d, P, D>(
         &self,
         point: P,
         d: &'d [D],
-    ) -> impl Iterator<Item = [usize; 2]> + 'd
+    ) -> impl Iterator<Item = [usize; 2]> + 'd + use<'d, T, P, D>
     where
         P: IntN<2>,
         D: IntN<2> + Copy + 'd,
@@ -63,7 +105,7 @@ impl<T> Grid<T> {
         &self,
         point: P,
         d: &'d [D],
-    ) -> impl Iterator<Item = (usize, [usize; 2])> + 'd
+    ) -> impl Iterator<Item = (usize, [usize; 2])> + 'd + use<'d, T, P, D>
     where
         P: IntN<2>,
         D: IntN<2> + Copy + 'd,
@@ -83,32 +125,48 @@ impl<T> Grid<T> {
     }
 
     pub const D4: [[isize; 2]; 4] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-    pub fn neighbors<P: IntN<2>>(&self, point: P) -> impl Iterator<Item = [usize; 2]> {
+    /// 隣接座標を返す。走査中もグリッドを変更できる。
+    ///
+    /// ```
+    /// use grid::Grid;
+    /// let mut g = Grid::new([3, 3], 0);
+    /// for p in g.neighbors([1, 1]) {
+    ///     g[p] += 1;
+    /// }
+    /// assert_eq!(g.inner.iter().sum::<i32>(), 4);
+    /// ```
+    pub fn neighbors<P: IntN<2>>(&self, point: P) -> impl Iterator<Item = [usize; 2]> + use<T, P> {
         self.neighbors_custom(point, &Self::D4)
     }
     /// `(D4のインデックス, 隣接座標)` を返す。`Grid::D4[idx]` で方向ベクトルを参照できる。
     pub fn neighbors_indexed<P: IntN<2>>(
         &self,
         point: P,
-    ) -> impl Iterator<Item = (usize, [usize; 2])> {
+    ) -> impl Iterator<Item = (usize, [usize; 2])> + use<T, P> {
         self.neighbors_custom_indexed(point, &Self::D4)
     }
 
     #[rustfmt::skip]
     pub const D8: [[isize; 2]; 8] = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
-    pub fn neighbors_8<P: IntN<2>>(&self, point: P) -> impl Iterator<Item = [usize; 2]> {
+    pub fn neighbors_8<P: IntN<2>>(
+        &self,
+        point: P,
+    ) -> impl Iterator<Item = [usize; 2]> + use<T, P> {
         self.neighbors_custom(point, &Self::D8)
     }
     /// `(D8のインデックス, 隣接座標)` を返す。`Grid::D8[idx]` で方向ベクトルを参照できる。
     pub fn neighbors_8_indexed<P: IntN<2>>(
         &self,
         point: P,
-    ) -> impl Iterator<Item = (usize, [usize; 2])> {
+    ) -> impl Iterator<Item = (usize, [usize; 2])> + use<T, P> {
         self.neighbors_custom_indexed(point, &Self::D8)
     }
 
     /// `(方向, 隣接座標)` を返す。
-    pub fn neighbors_dir<P: IntN<2>>(&self, point: P) -> impl Iterator<Item = (Dir, [usize; 2])> {
+    pub fn neighbors_dir<P: IntN<2>>(
+        &self,
+        point: P,
+    ) -> impl Iterator<Item = (Dir, [usize; 2])> + use<T, P> {
         let p = point.to_isizes();
         let size = self.size;
         Dir::ALL.into_iter().filter_map(move |d| {
@@ -269,6 +327,57 @@ mod tests {
         (0..h)
             .map(|i| (0..w).map(|j| g[[i, j]]).collect())
             .collect()
+    }
+
+    #[test]
+    fn all_pos_can_be_copied_and_outlive_grid() {
+        let mut positions = {
+            let g = Grid::new([2, 2], String::new());
+            g.all_pos()
+        };
+        assert_eq!(positions.next(), Some([0, 0]));
+        let copied = positions;
+        let expected = vec![[0, 1], [1, 0], [1, 1]];
+        assert_eq!(positions.collect::<Vec<_>>(), expected);
+        assert_eq!(copied.collect::<Vec<_>>(), expected);
+    }
+
+    #[test]
+    fn all_pos_handles_empty_dimensions() {
+        for size in [[0, 0], [0, 3], [3, 0]] {
+            let g = Grid::new(size, ());
+            let mut positions = g.all_pos();
+            assert_eq!(positions.next(), None);
+            assert_eq!(positions.next(), None);
+        }
+    }
+
+    #[test]
+    fn neighbor_iterators_allow_grid_mutation() {
+        let mut g = Grid::new([3, 3], 0);
+        let directions = Grid::<i32>::D4;
+        for p in g.neighbors_custom([1, 1], &directions) {
+            g[p] += 1;
+        }
+        for (_, p) in g.neighbors_custom_indexed([1, 1], &directions) {
+            g[p] += 1;
+        }
+        for p in g.neighbors([1, 1]) {
+            g[p] += 1;
+        }
+        for (_, p) in g.neighbors_indexed([1, 1]) {
+            g[p] += 1;
+        }
+        for p in g.neighbors_8([1, 1]) {
+            g[p] += 1;
+        }
+        for (_, p) in g.neighbors_8_indexed([1, 1]) {
+            g[p] += 1;
+        }
+        for (_, p) in g.neighbors_dir([1, 1]) {
+            g[p] += 1;
+        }
+        assert_eq!(g.inner, vec![2, 7, 2, 7, 0, 7, 2, 7, 2]);
     }
 
     #[test]

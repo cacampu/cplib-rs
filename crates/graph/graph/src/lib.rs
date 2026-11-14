@@ -25,7 +25,8 @@ pub trait Graph {
 /// ```
 #[derive(Clone, Debug)]
 pub struct AdjList<W = ()> {
-    adj: Vec<Vec<(usize, W)>>,
+    /// 頂点ごとの `(行き先, 重み)`。辺の並び替え・追加・削除に直接使える。
+    pub adj: Vec<Vec<(usize, W)>>,
 }
 
 /// 重みなしグラフの別名。
@@ -45,6 +46,22 @@ impl<W: Copy> AdjList<W> {
     pub fn add_undirected_edge(&mut self, u: usize, v: usize, w: W) {
         self.add_edge(u, v, w);
         self.add_edge(v, u, w);
+    }
+
+    /// 頂点 `v` の辺を直接編集する。並び替えや重みの変更に使う。
+    ///
+    /// ```
+    /// use graph::{AdjList, Graph};
+    /// let mut g = AdjList::new(3);
+    /// g.add_edge(0, 2, 1u32);
+    /// g.add_edge(0, 1, 1);
+    /// let edges = g.edges_mut(0);
+    /// edges.sort_unstable_by_key(|&(to, _)| to);
+    /// edges[0].1 = 0;
+    /// assert_eq!(g.edges(0).collect::<Vec<_>>(), vec![(1, 0), (2, 1)]);
+    /// ```
+    pub fn edges_mut(&mut self, v: usize) -> &mut [(usize, W)] {
+        &mut self.adj[v]
     }
 }
 
