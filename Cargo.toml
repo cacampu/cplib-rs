@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crates/*/*"]
+members = [ "crates/*/*", "playground"]
 resolver = "3"
 
 [workspace.package]
@@ -24,6 +24,8 @@ graph = { path = "crates/graph/graph" }
 shortest-path = { path = "crates/graph/shortest-path" }
 hld = { path = "crates/graph/hld" }
 scc = { path = "crates/graph/scc" }
+io = { path = "crates/lang/io" }
+multi-testcase = { path = "crates/lang/multi-testcase" }
 
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"

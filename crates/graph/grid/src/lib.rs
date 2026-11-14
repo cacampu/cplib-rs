@@ -52,6 +52,18 @@ fn in_bounds<const N: usize>(coord: [isize; N], size: [usize; N]) -> bool {
 }
 
 impl<T> Grid<T> {
+    /// 空白区切りの `h * w` 個の値を読む。改行位置には依存しない。
+    pub fn read<S: io::Source + ?Sized>(h: usize, w: usize, source: &mut S) -> Self
+    where
+        T: io::Readable<Output = T>,
+    {
+        let len = h.checked_mul(w).expect("grid size overflow");
+        Self {
+            size: [h, w],
+            inner: (0..len).map(|_| T::read(source)).collect(),
+        }
+    }
+
     pub fn new(size: [usize; 2], default: T) -> Self
     where
         T: Clone,
@@ -249,6 +261,50 @@ impl<T> Grid<T> {
             right -= 1;
         }
         self.sub_grid(top..bottom, left..right)
+    }
+}
+
+impl Grid<char> {
+    /// 各行が空白なしの文字列で与えられるグリッドを読む。
+    pub fn read_chars<S: io::Source + ?Sized>(h: usize, w: usize, source: &mut S) -> Self {
+        let mut inner = Vec::with_capacity(h.checked_mul(w).expect("grid size overflow"));
+        if w == 0 {
+            return Self {
+                size: [h, w],
+                inner,
+            };
+        }
+        for _ in 0..h {
+            let row = <io::marker::Chars as io::Readable>::read(source);
+            assert_eq!(row.len(), w, "grid row width mismatch");
+            inner.extend(row);
+        }
+        Self {
+            size: [h, w],
+            inner,
+        }
+    }
+}
+
+impl Grid<u8> {
+    /// 各行が空白なしのバイト列で与えられるグリッドを読む。
+    pub fn read_bytes<S: io::Source + ?Sized>(h: usize, w: usize, source: &mut S) -> Self {
+        let mut inner = Vec::with_capacity(h.checked_mul(w).expect("grid size overflow"));
+        if w == 0 {
+            return Self {
+                size: [h, w],
+                inner,
+            };
+        }
+        for _ in 0..h {
+            let row = <io::marker::Bytes as io::Readable>::read(source);
+            assert_eq!(row.len(), w, "grid row width mismatch");
+            inner.extend(row);
+        }
+        Self {
+            size: [h, w],
+            inner,
+        }
     }
 }
 

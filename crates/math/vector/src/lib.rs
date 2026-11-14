@@ -333,6 +333,15 @@ impl<T: FromStr, const N: usize> FromStr for Vector<T, N> {
     }
 }
 
+/// 入力元から `N` 個の値を読む。`FromStr` と異なり複数トークンを消費する。
+impl<T: io::Readable, const N: usize> io::Readable for Vector<T, N> {
+    type Output = Vector<T::Output, N>;
+
+    fn read<S: io::Source + ?Sized>(source: &mut S) -> Self::Output {
+        Vector(std::array::from_fn(|_| T::read(source)))
+    }
+}
+
 impl<T: Copy, const N: usize> IntN<N> for Vector<T, N>
 where
     [T; N]: IntN<N>,

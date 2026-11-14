@@ -1,0 +1,30 @@
+test-suite = "{{ manifest_dir }}/testcases/{{ bin_alias }}.yml"
+
+[template]
+src = '''
+use cplib_lang_io::{fastout, input, outln};
+
+#[fastout]
+fn main() {
+    input! {
+        n: usize,
+        a: [i64; n],
+    }
+    outln!("{}", a.iter().sum::<i64>());
+}
+'''
+
+[add]
+url = "{{ args[0] }}"
+bin-name = '{% if args[1] %}{{ args[1] }}{% else %}{% assign segments = url | split: "/" %}{{ segments | last }}{% endif %}'
+bin-alias = "{{ bin_name }}"
+bin-src-path = "./src/bin/{{ bin_alias }}.rs"
+
+[test]
+toolchain = "1.89.0"
+profile = "release"
+
+[submit]
+kind = "command"
+args = ["env", "CARGO_MANIFEST_DIR={{ manifest_dir }}", "cargo", "equip", "--exclude-atcoder-202510-crates", "--remove", "docs", "--minify", "libs", "--bin", "{{ bin_name }}"]
+language_id = "6088"

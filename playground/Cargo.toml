@@ -1,0 +1,17 @@
+[package]
+name = "cplib-playground"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+default-run = "cplib-playground"
+
+[dependencies]
+cplib-lang-io = { package = "io", path = "../crates/lang/io" }
+cplib-math-vector = { package = "vector", path = "../crates/math/vector" }
+cplib-graph-grid = { package = "grid", path = "../crates/graph/grid" }
+
+[package.metadata.cargo-compete.bin]
+vector = { problem = "https://atcoder.jp/contests/abc234/tasks/abc234_b"}
+grid = { problem = "https://atcoder.jp/contests/abc007/tasks/abc007_3"}
+numeric-grid = { problem = "https://atcoder.jp/contests/abc356/tasks/abc356_b"}
+multi-testcase = { problem = "https://atcoder.jp/contests/arc163/tasks/arc163_a"}

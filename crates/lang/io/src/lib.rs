@@ -1,5 +1,24 @@
+//! 競プロ用のトークン入力と、関数間で共有するバッファ付き出力。
+//!
+//! `input! { n: usize, a: [i64; n] }` と `let n = input!(usize)` の両形式を扱う。
+//! 任意の入力元には `input!(from &mut source, ...)` を使う。
+//! `#[fastout]` / `#[multi_testcase]` は共通出力を関数終了時に flush する。
+
+extern crate self as io;
+
 use std::fmt::{self, Display};
-use std::io::{self, Write};
+use std::io::{self as std_io, Write};
+
+mod input;
+mod output;
+
+pub use input::{LineSource, Readable, RuntimeReadable, Scanner, Source, read, stdin};
+pub use multi_testcase::{fastout, input, multi_testcase, read_value};
+#[doc(hidden)]
+pub use output::print_args as __print_args;
+pub use output::{FlushGuard, flush, flush_guard, stdout};
+
+pub mod marker;
 
 pub fn yes_no(ok: bool) -> &'static str {
     if ok { "Yes" } else { "No" }
@@ -46,14 +65,14 @@ pub fn chars(chars: &[char]) -> String {
     chars.iter().collect()
 }
 
-pub fn write_yes_no<W>(writer: &mut W, ok: bool) -> io::Result<()>
+pub fn write_yes_no<W>(writer: &mut W, ok: bool) -> std_io::Result<()>
 where
     W: Write,
 {
     writeln!(writer, "{}", yes_no(ok))
 }
 
-pub fn write_line<W, I, T>(writer: &mut W, iter: I) -> io::Result<()>
+pub fn write_line<W, I, T>(writer: &mut W, iter: I) -> std_io::Result<()>
 where
     W: Write,
     I: IntoIterator<Item = T>,
@@ -63,7 +82,7 @@ where
     writeln!(writer)
 }
 
-pub fn write_joined<W, I, T>(writer: &mut W, iter: I, sep: &str) -> io::Result<()>
+pub fn write_joined<W, I, T>(writer: &mut W, iter: I, sep: &str) -> std_io::Result<()>
 where
     W: Write,
     I: IntoIterator<Item = T>,
@@ -80,7 +99,7 @@ where
     Ok(())
 }
 
-pub fn write_matrix<W, I, J, T>(writer: &mut W, rows: I) -> io::Result<()>
+pub fn write_matrix<W, I, J, T>(writer: &mut W, rows: I) -> std_io::Result<()>
 where
     W: Write,
     I: IntoIterator<Item = J>,
