@@ -5,11 +5,27 @@
 //! `inv` / `exp` / `log` / `pow` / `sqrt` はいずれも Newton 法で、
 //! 精度を倍々にしながら畳み込みを繰り返すため `O(n log n)`。
 //! 打ち切り項数は呼び出し側が明示的に渡す。
+//!
+//! 疎な式との乗除算、総積・有理式の和、多点評価・補間、畳み込み DP、
+//! 線形漸化式にも対応する。使い分けはクレートの README を参照。
 
-use std::ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use convolution::convolution;
+use convolution::{convolution, intt, ntt};
 use modint::ModInt;
+
+mod convolution_dp;
+mod factorials;
+mod multipoint;
+mod product;
+mod recurrence;
+mod sparse;
+
+pub use convolution_dp::convolution_dp;
+pub use factorials::Factorials;
+pub use multipoint::interpolate;
+pub use product::{power_sums, sum_rationals};
+pub use recurrence::{berlekamp_massey, bostan_mori, linear_recurrence};
 
 /// 係数列 `a[0] + a[1] x + a[2] x^2 + ...`。
 ///
@@ -75,8 +91,46 @@ impl<const M: u32> Fps<M> {
 
     /// ちょうど `n` 項に揃える。足りなければ 0 で埋め、多ければ切る。
     pub fn pre(&self, n: usize) -> Self {
-        let mut coef = self.coef.clone();
+        let mut coef = self.coef[..self.len().min(n)].to_vec();
         coef.resize(n, ModInt::raw(0));
+        Self { coef }
+    }
+
+    /// 積をちょうど `n` 項求める。入力も `n` 項で打ち切って畳み込む。
+    pub fn mul_truncated(&self, rhs: &Self, n: usize) -> Self {
+        let mut coef = convolution(
+            &self.coef[..self.len().min(n)],
+            &rhs.coef[..rhs.len().min(n)],
+        );
+        coef.resize(n, ModInt::raw(0));
+        Self { coef }
+    }
+
+    /// 級数としての `self / rhs` をちょうど `n` 項求める。
+    /// `rhs` の定数項が非零であること。多項式の商・余りには `div_rem` を使う。
+    pub fn div_series(&self, rhs: &Self, n: usize) -> Self {
+        self.mul_truncated(&rhs.inv(n), n)
+    }
+
+    /// `self^e mod (x^n - 1)` を長さ `n` で返す。`O(n log n + n log(e+1) + len)`。
+    ///
+    /// `n` は正の2冪で、`M - 1` の約数であること。
+    /// 通常の `pow` と異なり、`n` 次以上の項は低次へ折り返される。
+    pub fn pow_cyclic(&self, e: u64, n: usize) -> Self {
+        assert!(
+            n.is_power_of_two(),
+            "cyclic length must be a positive power of two"
+        );
+        assert!((M as usize - 1) % n == 0, "cyclic length must divide M - 1");
+        let mut coef = vec![ModInt::raw(0); n];
+        for (i, &c) in self.coef.iter().enumerate() {
+            coef[i % n] += c;
+        }
+        ntt(&mut coef);
+        for c in &mut coef {
+            *c = c.pow(e);
+        }
+        intt(&mut coef);
         Self { coef }
     }
 
@@ -318,6 +372,12 @@ impl<const M: u32> Index<usize> for Fps<M> {
     type Output = ModInt<M>;
     fn index(&self, i: usize) -> &ModInt<M> {
         &self.coef[i]
+    }
+}
+
+impl<const M: u32> IndexMut<usize> for Fps<M> {
+    fn index_mut(&mut self, i: usize) -> &mut ModInt<M> {
+        &mut self.coef[i]
     }
 }
 
