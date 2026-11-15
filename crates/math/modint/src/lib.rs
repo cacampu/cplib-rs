@@ -337,6 +337,12 @@ macro_rules! impl_modint_common {
             }
         }
 
+        impl<const $param: $ptype> io::Printable for $ty<$param> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fmt::Display::fmt(self, f)
+            }
+        }
+
         impl<const $param: $ptype> fmt::Display for $ty<$param> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 self.val.fmt(f)

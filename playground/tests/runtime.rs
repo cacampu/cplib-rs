@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-fn run(program: &str, input: &str) -> String {
+fn run_capture(program: &str, input: &str) -> (String, String) {
     let mut child = Command::new(program)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -20,7 +20,14 @@ fn run(program: &str, input: &str) -> String {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-    String::from_utf8(result.stdout).unwrap()
+    (
+        String::from_utf8(result.stdout).unwrap(),
+        String::from_utf8(result.stderr).unwrap(),
+    )
+}
+
+fn run(program: &str, input: &str) -> String {
+    run_capture(program, input).0
 }
 
 #[test]
@@ -64,5 +71,27 @@ fn closure_macros_compose_with_io_and_binary_search() {
     assert_eq!(
         run(env!("CARGO_BIN_EXE_closure-macros"), ""),
         "6\n6\n105\n7\n10\n2\n"
+    );
+}
+
+#[test]
+fn printable_output_and_debug_share_formats_without_moving_values() {
+    let (stdout, stderr) = run_capture(env!("CARGO_BIN_EXE_output"), "");
+    let evaluations = usize::from(cfg!(debug_assertions));
+    assert_eq!(
+        stdout,
+        format!(
+            "2 1\n1 -1 3\n3,-1,1\n3\n-1\n1\n-1\n9\nYes\nNo\nImpossible\n\
+             42\ntrue\n1.25\n3:-1:1 / [1, 2]\n7\n4 5\n6 7\n8 8\n8 8\n\n\
+             end ok\nevaluations={evaluations}\n"
+        )
+    );
+    assert_eq!(
+        stderr,
+        if cfg!(debug_assertions) {
+            "3 -1 1\n3;-1;1\nx=1.2\n3\n-1\n1\n99\n"
+        } else {
+            ""
+        }
     );
 }

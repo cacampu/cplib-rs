@@ -1,6 +1,6 @@
 # macros
 
-`chmin!` / `chmax!` / `mat!` と、再帰・呼び出し時借用のマクロ。
+`swap!` / `chmin!` / `chmax!` / `mat!` と、再帰・呼び出し時借用のマクロ。
 追加の依存クレートや手続きマクロは不要。`use macros::{recurfn, lazyfn, lazymac};` で使う。
 `cplib-lang-macros` という依存名なら `use cplib_lang_macros::{...};`。
 
@@ -85,6 +85,19 @@ assert_eq!(xs, [2, 5, 5]);
 `lazymac!` はクロージャ値を返さず、再帰もできない。
 
 ## 既存のヘルパー
+
+`swap!(a, b)` は変数やフィールドを交換する。`Copy` は不要で、各式は1回だけ評価する。
+同じ配列・`Vec` 内の交換には `swap!(a; i, j)` を使う。添字が同じ場合にも使える。
+
+```rust
+use macros::swap;
+let (mut a, mut b) = (1, 2);
+swap!(a, b);
+assert_eq!((a, b), (2, 1));
+let mut xs = vec![10, 20, 30];
+swap!(xs; 0, 2);
+assert_eq!(xs, [30, 20, 10]);
+```
 
 `chmin!` / `chmax!` は比較候補と更新先の式をそれぞれ1回だけ評価する。
 候補を先に計算するので、`chmin!(dist[v], dist[u] + 1)` のように同じ配列から読める。

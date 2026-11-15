@@ -6,6 +6,27 @@ mod closure;
 #[doc(hidden)]
 pub use closure::{Call as __Call, CallState as __CallState, Recursive as __Recursive};
 
+/// 変数・フィールドを交換する。同じ配列内では `swap!(a; i, j)` を使う。
+///
+/// ```
+/// use macros::swap;
+/// let (mut a, mut b) = (1, 2);
+/// swap!(a, b);
+/// assert_eq!((a, b), (2, 1));
+/// let mut values = vec![String::from("a"), String::from("b")];
+/// swap!(values; 0, 1);
+/// assert_eq!(values, ["b", "a"]);
+/// ```
+#[macro_export]
+macro_rules! swap {
+    ($values:expr; $i:expr, $j:expr $(,)?) => {
+        ($values).swap($i, $j)
+    };
+    ($a:expr, $b:expr $(,)?) => {
+        ::std::mem::swap(&mut $a, &mut $b)
+    };
+}
+
 #[macro_export]
 macro_rules! chmin {
     ($a:expr,$b:expr $(,)?) => {{

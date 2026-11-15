@@ -43,6 +43,7 @@ dependencies = [
  "grid",
  "io",
  "macros",
+ "modint",
  "vector",
 ]
 
@@ -158,6 +159,7 @@ name = "modint"
 version = "0.1.0"
 dependencies = [
  "algebra",
+ "io",
  "prefix-sum",
  "segtree",
 ]

@@ -35,6 +35,12 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Vector<T, const N: usize = 2>(pub [T; N]);
 
+impl<T: io::Printable, const N: usize> io::Printable for Vector<T, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        io::Printable::fmt(&self.0, f)
+    }
+}
+
 /// broadcast演算のためのスカラーラッパー。
 /// `Vector<T> op Scalar<S>` は `T op S` が定義されていれば自動的に実装される。
 /// 例: `Vector<ModInt> * Scalar(3i64)` は `ModInt: Mul<i64, Output=ModInt>` があれば動く。

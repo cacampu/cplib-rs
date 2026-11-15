@@ -8,6 +8,32 @@ use quote::quote;
 use syn::{Ident, ItemFn, Path, ReturnType, Type, parse_macro_input};
 
 mod input_macro;
+mod output_macro;
+
+fn expand_output(tokens: TokenStream, newline: bool, debug: bool) -> TokenStream {
+    match output_macro::expand(tokens.into(), newline, debug) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.into_compile_error().into(),
+    }
+}
+
+/// 値を Printable で出力する。先頭が文字列リテラルなら std の書式指定として扱う。
+#[proc_macro]
+pub fn out(tokens: TokenStream) -> TokenStream {
+    expand_output(tokens, false, false)
+}
+
+/// out! と同じ形式で末尾に改行を出力する。
+#[proc_macro]
+pub fn outln(tokens: TokenStream) -> TokenStream {
+    expand_output(tokens, true, false)
+}
+
+/// debug ビルド時だけ、同じ出力形式で stderr へ改行付きで出力する。
+#[proc_macro]
+pub fn debug(tokens: TokenStream) -> TokenStream {
+    expand_output(tokens, true, true)
+}
 
 fn runtime_path() -> syn::Result<Tokens> {
     match crate_name("io") {

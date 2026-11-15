@@ -1,3 +1,4 @@
+use super::{Printable, printable};
 use std::fmt;
 use std::io::{self, BufWriter, Stdout, Write};
 use std::sync::{LazyLock, Mutex, MutexGuard};
@@ -17,6 +18,30 @@ pub fn flush() {
 #[doc(hidden)]
 pub fn print_args(args: fmt::Arguments<'_>) {
     stdout().write_fmt(args).expect("failed to write stdout");
+}
+
+#[doc(hidden)]
+pub fn print_args_ln(args: fmt::Arguments<'_>) {
+    let mut writer = stdout();
+    writer.write_fmt(args).expect("failed to write stdout");
+    writer.write_all(b"\n").expect("failed to write stdout");
+}
+
+/// 値を Printable の形式で出力する。
+pub fn print(value: impl Printable) {
+    print_args(format_args!("{}", printable(value)));
+}
+
+/// 値を Printable の形式で改行付きで出力する。
+pub fn println(value: impl Printable) {
+    print_args_ln(format_args!("{}", printable(value)));
+}
+
+#[doc(hidden)]
+pub fn debug_args(args: fmt::Arguments<'_>) {
+    let mut writer = io::stderr().lock();
+    writer.write_fmt(args).expect("failed to write stderr");
+    writer.write_all(b"\n").expect("failed to write stderr");
 }
 
 /// スコープ終了時に共通の出力バッファを flush するガード。
@@ -39,19 +64,4 @@ impl Drop for FlushGuard {
             flush();
         }
     }
-}
-
-/// 共通バッファへ改行なしで出力する。
-#[macro_export]
-macro_rules! out {
-    ($($args:tt)*) => { $crate::__print_args(format_args!($($args)*)) };
-}
-
-/// 共通バッファへ改行付きで出力する。
-#[macro_export]
-macro_rules! outln {
-    () => { $crate::__print_args(format_args!("\n")) };
-    ($($args:tt)*) => {
-        $crate::__print_args(format_args!("{}\n", format_args!($($args)*)))
-    };
 }

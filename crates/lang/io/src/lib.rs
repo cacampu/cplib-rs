@@ -7,25 +7,39 @@
 
 extern crate self as io;
 
-use std::fmt::{self, Display};
+use std::fmt;
 use std::io::{self as std_io, Write};
 
 mod input;
 mod output;
+mod printable;
 
 pub use input::{
     INPUT, InputBuffer, InputSource, LineSource, Readable, RuntimeReadable, Scanner, Source, read,
     stdin,
 };
-pub use multi_testcase::{fastout, input, multi_testcase, read_value};
+pub use multi_testcase::{debug, fastout, input, multi_testcase, out, outln, read_value};
+#[doc(hidden)]
+pub use output::debug_args as __debug_args;
 #[doc(hidden)]
 pub use output::print_args as __print_args;
-pub use output::{FlushGuard, flush, flush_guard, stdout};
+#[doc(hidden)]
+pub use output::print_args_ln as __print_args_ln;
+pub use output::{FlushGuard, flush, flush_guard, print, println, stdout};
+pub use printable::{
+    DisplayValue, OptionOr, Printable, Printed, Separated, display, lines, option_or, printable,
+    separated,
+};
 
 pub mod marker;
 
 pub fn yes_no(ok: bool) -> &'static str {
     if ok { "Yes" } else { "No" }
+}
+
+/// Yes / No を共通バッファへ改行付きで出力する。
+pub fn print_yes_no(ok: bool) {
+    println(yes_no(ok));
 }
 
 pub fn yes_no_upper(ok: bool) -> &'static str {
@@ -39,7 +53,7 @@ pub fn possible_impossible(ok: bool) -> &'static str {
 pub fn line<I, T>(iter: I) -> String
 where
     I: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     joined(iter, " ")
 }
@@ -47,7 +61,7 @@ where
 pub fn joined<I, T>(iter: I, sep: &str) -> String
 where
     I: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     let mut buf = String::new();
     write_joined_fmt(&mut buf, iter, sep).expect("writing to String cannot fail");
@@ -58,7 +72,7 @@ pub fn matrix<I, J, T>(rows: I) -> String
 where
     I: IntoIterator<Item = J>,
     J: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     let mut buf = String::new();
     write_matrix_fmt(&mut buf, rows).expect("writing to String cannot fail");
@@ -80,7 +94,7 @@ pub fn write_line<W, I, T>(writer: &mut W, iter: I) -> std_io::Result<()>
 where
     W: Write,
     I: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     write_joined(writer, iter, " ")?;
     writeln!(writer)
@@ -90,7 +104,7 @@ pub fn write_joined<W, I, T>(writer: &mut W, iter: I, sep: &str) -> std_io::Resu
 where
     W: Write,
     I: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     let mut first = true;
     for value in iter {
@@ -98,7 +112,7 @@ where
             write!(writer, "{sep}")?;
         }
         first = false;
-        write!(writer, "{value}")?;
+        write!(writer, "{}", printable(value))?;
     }
     Ok(())
 }
@@ -108,7 +122,7 @@ where
     W: Write,
     I: IntoIterator<Item = J>,
     J: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     let mut first_row = true;
     for row in rows {
@@ -123,17 +137,17 @@ where
 
 pub fn debug<T>(value: T)
 where
-    T: Display,
+    T: Printable,
 {
     if cfg!(debug_assertions) {
-        eprintln!("{value}");
+        eprintln!("{}", printable(value));
     }
 }
 
 pub fn debug_line<I, T>(iter: I)
 where
     I: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     if cfg!(debug_assertions) {
         eprintln!("{}", line(iter));
@@ -144,7 +158,7 @@ pub fn debug_matrix<I, J, T>(rows: I)
 where
     I: IntoIterator<Item = J>,
     J: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     if cfg!(debug_assertions) {
         eprintln!("{}", matrix(rows));
@@ -155,7 +169,7 @@ fn write_joined_fmt<W, I, T>(writer: &mut W, iter: I, sep: &str) -> fmt::Result
 where
     W: fmt::Write,
     I: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     let mut first = true;
     for value in iter {
@@ -163,7 +177,7 @@ where
             writer.write_str(sep)?;
         }
         first = false;
-        write!(writer, "{value}")?;
+        write!(writer, "{}", printable(value))?;
     }
     Ok(())
 }
@@ -173,7 +187,7 @@ where
     W: fmt::Write,
     I: IntoIterator<Item = J>,
     J: IntoIterator<Item = T>,
-    T: Display,
+    T: Printable,
 {
     let mut first_row = true;
     for row in rows {

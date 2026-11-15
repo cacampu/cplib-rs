@@ -11,7 +11,7 @@ fn main() {
     let n = input!(usize);
     input! { mut a: [i64; n] }
     a.sort_unstable();
-    outln!("{}", io::line(a));
+    outln!(a);
 }
 ```
 
@@ -110,6 +110,53 @@ let bytes = Grid::read_bytes(h, w, &INPUT);
 独自の1トークン型を `FromStr` だけで読む場合は `io::marker::Token<T>` を指定する。
 
 ## 出力・複数ケース
+
+`out!(value)` / `outln!(value)` は `Printable` に従って値を出力する。
+`Vec`・スライス・配列・タプルは空白区切り、`Option::None` は `-1`、`Some(x)` は `x`。
+複数の値を渡した場合も空白で区切る。引数は借用するため、出力した後も変数を使える。
+
+```rust
+use io::{outln, separated, lines, option_or, yes_no};
+let a = vec![Some(1), None, Some(3)];
+outln!(a);                        // 1 -1 3
+outln!(separated(&a, ","));       // 1,-1,3
+outln!(lines(&a));                // 1、-1、3 を各行に出力
+outln!(42, Some(7));              // 42 7
+outln!(yes_no(true));             // Yes
+io::print_yes_no(false);          // No と改行を直接出力
+outln!(option_or(&None::<i64>, "Impossible"));
+outln!("{:.2}", 1.234);           // 1.23: 従来の書式指定も使える
+io::flush();
+```
+
+先頭が文字列リテラルの場合は標準の `format_args!` と同じ書式指定として扱う。
+この形式で配列などを埋め込むときは `outln!("answer: {}", io::printable(&a))` と書く。
+文字列自体を値として出したい場合は `outln!(("{literal}"))` のように括弧で包める。
+`out!()` は何も出さず、`outln!()` は改行だけを出す。
+
+`separated(&a, separator)` は文字列や文字の区切りに対応し、中間の文字列を作らない。
+`lines(&matrix)` は行間を改行にし、各行の配列は空白区切りになる。
+`Vector`、`Grid`、静的・動的 `ModInt` にも `Printable` を実装している。
+`Grid` は行ごとに改行し、セル間を空白で区切る。
+`bool` 自体は `true` / `false`。`yes_no` は `Yes` / `No`、`yes_no_upper` は `YES` / `NO` を返す。
+
+独自型は `Printable` を実装できる。`Display` のみの型には `io::display(value)` を使う。
+`io::print(value)` / `io::println(value)` は関数版、`io::printable(value)` は
+標準の `format!` / `write!` でも使えるアダプタ。
+既存の `line` / `joined` / `matrix` と `write_*` も `Printable` に対応する。
+
+```rust
+use io::{debug, separated};
+let a = vec![Some(1), None];
+debug!(a);                       // stderr に 1 -1 と改行
+debug!(separated(&a, ","));       // stderr に 1,-1 と改行
+debug!("a={a:?}");               // 標準の書式指定
+io::debug(&a);                   // 関数版も同じ Printable の形式
+```
+
+デバッグ出力は `debug_assertions` が有効なビルドでのみ行う。
+`debug!` は無効時に引数式も評価しない。関数版の `debug` / `debug_line` /
+`debug_matrix` では通常の関数と同じく引数式を評価する。
 
 `out!` / `outln!` は全関数・スレッドで同じ `BufWriter` を使う。
 `#[fastout]` はそのバッファを関数終了時に flush するだけで、ローカル変数を捕捉する

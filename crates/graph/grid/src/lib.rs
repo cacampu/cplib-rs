@@ -371,6 +371,19 @@ impl<T: Display> Display for Grid<T> {
     }
 }
 
+impl<T: io::Printable> io::Printable for Grid<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let [h, w] = self.size;
+        for row in 0..h {
+            if row != 0 {
+                f.write_str("\n")?;
+            }
+            io::Printable::fmt(&self.inner[row * w..(row + 1) * w], f)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

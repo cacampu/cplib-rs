@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 algebra.workspace = true
+io.workspace = true
 
 [dev-dependencies]
 segtree.workspace = true
