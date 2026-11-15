@@ -66,13 +66,14 @@ impl<T> Grid<T> {
         }
     }
 
-    pub fn new(size: [usize; 2], default: T) -> Self
+    /// `h` 行 `w` 列を `default` で初期化する。
+    pub fn new(h: usize, w: usize, default: T) -> Self
     where
         T: Clone,
     {
         Self {
-            size,
-            inner: vec![default; size[0] * size[1]],
+            size: [h, w],
+            inner: vec![default; h * w],
         }
     }
 
@@ -85,7 +86,7 @@ impl<T> Grid<T> {
     ///
     /// ```
     /// use grid::Grid;
-    /// let mut g = Grid::new([2, 3], 0);
+    /// let mut g = Grid::new(2, 3, 0);
     /// for p in g.all_pos() {
     ///     g[p] += 5;
     /// }
@@ -143,7 +144,7 @@ impl<T> Grid<T> {
     ///
     /// ```
     /// use grid::Grid;
-    /// let mut g = Grid::new([3, 3], 0);
+    /// let mut g = Grid::new(3, 3, 0);
     /// for p in g.neighbors([1, 1]) {
     ///     g[p] += 1;
     /// }
@@ -392,7 +393,7 @@ mod tests {
     #[test]
     fn all_pos_can_be_copied_and_outlive_grid() {
         let mut positions = {
-            let g = Grid::new([2, 2], String::new());
+            let g = Grid::new(2, 2, String::new());
             g.all_pos()
         };
         assert_eq!(positions.next(), Some([0, 0]));
@@ -404,8 +405,8 @@ mod tests {
 
     #[test]
     fn all_pos_handles_empty_dimensions() {
-        for size in [[0, 0], [0, 3], [3, 0]] {
-            let g = Grid::new(size, ());
+        for [h, w] in [[0, 0], [0, 3], [3, 0]] {
+            let g = Grid::new(h, w, ());
             let mut positions = g.all_pos();
             assert_eq!(positions.next(), None);
             assert_eq!(positions.next(), None);
@@ -414,7 +415,7 @@ mod tests {
 
     #[test]
     fn neighbor_iterators_allow_grid_mutation() {
-        let mut g = Grid::new([3, 3], 0);
+        let mut g = Grid::new(3, 3, 0);
         let directions = Grid::<i32>::D4;
         for p in g.neighbors_custom([1, 1], &directions) {
             g[p] += 1;
@@ -509,7 +510,7 @@ mod tests {
 
     #[test]
     fn neighbors_dir_reports_direction_and_position() {
-        let g = Grid::new([3, 3], 0);
+        let g = Grid::new(3, 3, 0);
         let found: Vec<_> = g.neighbors_dir([0usize, 0]).collect();
         assert_eq!(found.len(), 2);
         assert!(found.contains(&(Dir::D, [1, 0])));

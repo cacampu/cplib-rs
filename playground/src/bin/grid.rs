@@ -12,7 +12,7 @@ fn main() {
         goal: (Usize1, Usize1),
     }
     let map = Grid::read_bytes(h, w, &INPUT);
-    let mut distance = Grid::new([h, w], usize::MAX);
+    let mut distance = Grid::new(h, w, usize::MAX);
     distance[start] = 0;
     let mut queue = VecDeque::from([start]);
     while let Some(p) = queue.pop_front() {
