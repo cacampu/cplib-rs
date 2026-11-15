@@ -9,6 +9,8 @@ default-run = "cplib-playground"
 cplib-lang-io = { package = "io", path = "../crates/lang/io" }
 cplib-math-vector = { package = "vector", path = "../crates/math/vector" }
 cplib-graph-grid = { package = "grid", path = "../crates/graph/grid" }
+cplib-lang-macros = { package = "macros", path = "../crates/lang/macros" }
+cplib-search-binary-search = { package = "binary-search", path = "../crates/search/binary-search" }
 
 [package.metadata.cargo-compete.bin]
 vector = { problem = "https://atcoder.jp/contests/abc234/tasks/abc234_b"}

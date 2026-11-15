@@ -39,8 +39,10 @@ dependencies = [
 name = "cplib-playground"
 version = "0.1.0"
 dependencies = [
+ "binary-search",
  "grid",
  "io",
+ "macros",
  "vector",
 ]
 

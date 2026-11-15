@@ -58,3 +58,11 @@ fn global_grid_input_can_cross_functions_and_testcases() {
         "33\n15\n"
     );
 }
+
+#[test]
+fn closure_macros_compose_with_io_and_binary_search() {
+    assert_eq!(
+        run(env!("CARGO_BIN_EXE_closure-macros"), ""),
+        "6\n6\n105\n7\n10\n2\n"
+    );
+}

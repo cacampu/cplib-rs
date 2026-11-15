@@ -17,6 +17,8 @@ GitHub への push、依存更新ワークフロー、`cargo update` は不要�
 `src/main.rs` は問題に紐づかない試行用、`src/bin/io-runtime.rs` は出力共有の例。
 `src/bin/shared-input.rs` は `#[multi_testcase]` → `solve()` → グリッド読み取り関数へ
 処理を分けても `&INPUT` で同じバッファを使う例。入力元を引数に渡し回す必要はない。
+`src/bin/closure-macros.rs` は `recurfn!` / `lazyfn!` / `lazymac!` と二分探索・I/O の組合せ。
+`cargo run -p cplib-playground --bin closure-macros` で実行し、`just bundle closure-macros` で単一ファイル化できる。
 
 ## 使い方
 
