@@ -24,6 +24,7 @@ graph = { path = "crates/graph/graph" }
 shortest-path = { path = "crates/graph/shortest-path" }
 hld = { path = "crates/graph/hld" }
 scc = { path = "crates/graph/scc" }
+beam = { path = "crates/heuristic/beam" }
 io = { path = "crates/lang/io" }
 multi-testcase = { path = "crates/lang/multi-testcase" }
 

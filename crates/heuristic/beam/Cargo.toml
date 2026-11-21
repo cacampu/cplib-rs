@@ -1,0 +1,17 @@
+[package]
+name = "beam"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+profile = []
+
+[dev-dependencies]
+rand.workspace = true
+rand_pcg = "=0.9.0"
+criterion = { version = "=0.5.1", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "tree"
+harness = false
