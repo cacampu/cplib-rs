@@ -26,5 +26,5 @@ profile = "release"
 
 [submit]
 kind = "command"
-args = ["env", "CARGO_MANIFEST_DIR={{ manifest_dir }}", "cargo", "equip", "--exclude-atcoder-202510-crates", "--remove", "docs", "--minify", "libs", "--bin", "{{ bin_name }}"]
+args = ["python3", "scripts/equip-submit.py", "{{ bin_name }}", "--exclude-atcoder-202510-crates", "--remove", "docs", "--minify", "libs"]
 language_id = "6088"

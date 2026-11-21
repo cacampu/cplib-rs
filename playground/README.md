@@ -65,7 +65,9 @@ cargo add --rename cplib-math-fps --path ../crates/math/fps
 `just bundle ALIAS` はローカルの変更を含む単一ファイルを `target/ALIAS-bundled.rs` に作る。
 cargo-equip がコードをまとめ、生成コードをコンパイルしてから保存する。
 インストール済みの cargo-equip はプロシージャルマクロの展開プロセスに Cargo の環境変数を
-渡さないため、レシピと `[submit]` 設定で `CARGO_MANIFEST_DIR` を明示している。
+渡さないため、バンドル時に `CARGO_MANIFEST_DIR` を設定する。
+`[submit]` のラッパーは `bin_name` を受け取り、`cargo metadata` で対象の
+`Cargo.toml` を特定する。
 入出力マクロの依存名解決も、まとめた後のクレート参照も実際の生成・コンパイルで検証する。
 
 現在インストールされている cargo-equip では、手続きマクロを通る文字列リテラルの
