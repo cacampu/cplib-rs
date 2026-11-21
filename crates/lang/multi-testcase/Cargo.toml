@@ -11,4 +11,6 @@ proc-macro = true
 syn.workspace = true
 quote.workspace = true
 proc-macro2.workspace = true
-proc-macro-crate = "3.5"
+# AtCoder の indexmap = 2.11.0 と共存させるため、toml_edit 0.22 系を使う。
+# 3.5 は toml_edit 経由で indexmap >= 2.11.4 を要求する。
+proc-macro-crate = "=3.3.0"

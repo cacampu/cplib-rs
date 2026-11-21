@@ -6,6 +6,8 @@ publish = false
 default-run = "cplib-playground"
 
 [dependencies]
+# AtCoder の固定版と手続きマクロの依存が共存できることも検証する。
+indexmap = "=2.11.0"
 cplib-lang-io = { package = "io", path = "../crates/lang/io" }
 cplib-math-vector = { package = "vector", path = "../crates/math/vector" }
 cplib-graph-grid = { package = "grid", path = "../crates/graph/grid" }
