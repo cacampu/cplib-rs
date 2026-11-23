@@ -3,6 +3,7 @@ name = "segtree"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [dependencies]
 algebra.workspace = true
