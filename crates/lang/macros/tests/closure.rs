@@ -71,6 +71,43 @@ fn recursive_mutable_state_is_reborrowed() {
 }
 
 #[test]
+fn recursive_named_captures_can_be_moved_and_reborrowed() {
+    let labels = ["a", "b"];
+    let mut seen = Vec::new();
+    let mut calls = 0;
+    recurfn!(walk = [seen, calls] |index: usize| {
+        seen.push(labels[index]);
+        *calls += 1;
+        if index > 0 {
+            walk!(index - 1,);
+        }
+        seen.push(labels[index]);
+    });
+    let mut moved = walk;
+    moved(1);
+    assert_eq!(seen, ["b", "a", "a", "b"]);
+    assert_eq!(calls, 2);
+}
+
+#[test]
+fn lazyfn_can_declare_multiple_closures_in_one_invocation() {
+    let mut total = 0;
+    lazyfn!(
+        add = |value: usize| { total += value; };
+        add_twice = |value: usize| { add!(value); add!(value); },
+        current = || -> usize { total };
+        recur sum = |state: &mut usize, n: usize| {
+            *state += n;
+            if n > 0 { sum(state, n - 1); }
+        };
+    );
+    add_twice!(2);
+    assert_eq!(current!(), 4);
+    sum!(&mut total, 3);
+    assert_eq!(current!(), 10);
+}
+
+#[test]
 fn lazy_recursive_calls_allow_updates_between_invocations() {
     let g = [
         vec![1, 4],

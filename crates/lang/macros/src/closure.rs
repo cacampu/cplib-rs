@@ -68,19 +68,30 @@ where
 /// });
 /// ```
 ///
-/// 再帰クロージャで外部変数を直接可変キャプチャすることはできない。
+/// 複数の外部変数を更新する場合は、`[変数名, ...]` を指定する。
+/// 本体からはそれぞれが `&mut` 引数として見え、`名前!(...)` で再借用して再帰する。
 ///
-/// ```compile_fail
+/// ```
 /// use macros::recurfn;
+/// let mut seen = Vec::new();
 /// let mut total = 0;
-/// recurfn!(sum = |n: usize| {
-///     total += n;
-///     if n > 0 { sum(n - 1); }
+/// recurfn!(walk = [seen, total] |n: usize| {
+///     seen.push(n);
+///     *total += n;
+///     if n > 0 { walk!(n - 1); }
 /// });
-/// sum(3);
+/// walk(3);
+/// assert_eq!(seen, [3, 2, 1, 0]);
+/// assert_eq!(total, 6);
 /// ```
 #[macro_export]
 macro_rules! recurfn {
+    ($name:ident = [$($capture:ident),+ $(,)?] || $(-> $r:ty)? $body:block) => {
+        $crate::recurfn!(@capture ($) $name [$($capture),+] [] [$($r)?] $body);
+    };
+    ($name:ident = [$($capture:ident),+ $(,)?] |$($a:ident: $t:ty),* $(,)?| $(-> $r:ty)? $body:block) => {
+        $crate::recurfn!(@capture ($) $name [$($capture),+] [$($a: $t),*] [$($r)?] $body);
+    };
     ($name:ident = || $(-> $r:ty)? $body:block) => {
         $crate::recurfn!(@plain $name [] [$($r)?] $body);
     };
@@ -95,6 +106,47 @@ macro_rules! recurfn {
     };
     (@state $name:ident [$state:ident: $s:ty] [$($a:ident: $t:ty),*] [] $body:block) => {
         $crate::recurfn!(@state $name [$state: $s] [$($a: $t),*] [()] $body);
+    };
+    (@capture ($d:tt) $name:ident [$($capture:ident),+] [$($a:ident: $t:ty),*] [] $body:block) => {
+        $crate::recurfn!(@capture ($d) $name [$($capture),+] [$($a: $t),*] [()] $body);
+    };
+    (@capture ($d:tt) $name:ident [$($capture:ident),+] [$($a:ident: $t:ty),*] [$r:ty] $body:block) => {
+        #[allow(unused_mut)]
+        let mut $name = |$($a: $t),*| -> $r {
+            #[allow(non_camel_case_types)]
+            fn __call<__F, __Args, __Output, $($capture: ?Sized),+>(
+                args: __Args,
+                $($capture: &mut $capture,)+
+                body: &__F,
+            ) -> __Output
+            where
+                __F: Fn(
+                    &dyn Fn(__Args, $(&mut $capture),+) -> __Output,
+                    __Args,
+                    $(&mut $capture),+
+                ) -> __Output,
+            {
+                body(
+                    &|args, $($capture),+| __call(args, $($capture),+, body),
+                    args,
+                    $($capture),+
+                )
+            }
+
+            __call(
+                ($($a,)*),
+                $(&mut $capture,)+
+                &|__recur, ($($a,)*), $($capture),+| {
+                    #[allow(unused_macros)]
+                    macro_rules! $name {
+                        ($($d $a:expr),* $d(,)?) => {
+                            __recur(($($d $a,)*), $($capture),+)
+                        };
+                    }
+                    $body
+                },
+            )
+        };
     };
     (@plain $name:ident [$($a:ident: $t:ty),*] [$r:ty] $body:block) => {
         let __recursive = $crate::__Recursive(
@@ -124,6 +176,54 @@ macro_rules! recurfn {
     };
 }
 
+/// 元の raw pointer 方式で再帰クロージャを作る。呼び出し側で `unsafe` が必要。
+///
+/// # Safety
+///
+/// 再帰時に同じ `FnMut` への可変参照が重なり、未定義動作になりうる。
+/// クロージャの移動で、保存されたポインタも無効になる。安全な再帰には `recurfn!` を使う。
+///
+/// ```no_run
+/// use macros::recurfn_unsafe;
+/// let mut total = 0;
+/// unsafe {
+///     recurfn_unsafe!(sum = |n: usize| {
+///         total += n;
+///         if n > 0 { sum(n - 1); }
+///     });
+///     sum(3);
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use macros::recurfn_unsafe;
+/// recurfn_unsafe!(call = || {});
+/// call();
+/// ```
+#[macro_export]
+macro_rules! recurfn_unsafe {
+    ($name:ident = || $(-> $r:ty)? $body:block) => {
+        $crate::recurfn_unsafe!(@make $name [] [$($r)?] $body);
+    };
+    ($name:ident = |$($a:ident: $t:ty),* $(,)?| $(-> $r:ty)? $body:block) => {
+        $crate::recurfn_unsafe!(@make $name [$($a: $t),*] [$($r)?] $body);
+    };
+    (@make $name:ident [$($a:ident: $t:ty),*] [] $body:block) => {
+        $crate::recurfn_unsafe!(@make $name [$($a: $t),*] [()] $body);
+    };
+    (@make $name:ident [$($a:ident: $t:ty),*] [$r:ty] $body:block) => {
+        let __recursive: ::std::cell::Cell<*mut (dyn FnMut($($t),*) -> $r + '_)> =
+            ::std::cell::Cell::new(::std::ptr::null_mut::<fn($($t),*) -> $r>());
+        #[allow(unused_mut)]
+        let mut $name = |$($a: $t),*| -> $r {
+            #[allow(unused_mut, unused_variables)]
+            let mut $name = |$($a: $t),*| -> $r { (*__recursive.get())($($a),*) };
+            $body
+        };
+        __recursive.set(&mut $name as *mut _);
+    };
+}
+
 /// 呼び出した式の間だけキャプチャを借用するローカルマクロを定義する。
 /// `name!(args)` で呼び、`name!(fn)` で通常のクロージャ値を得る。
 ///
@@ -142,23 +242,34 @@ macro_rules! recurfn {
 ///
 /// 再帰版は `lazyfn!(recur name = |...| { ... })`。可変状態は `recurfn!` と同じく第1引数。
 /// `return` / `?` はクロージャから抜ける。`name!(fn)` を変数に保持すると、その間は借用が続く。
+/// 複数の定義を `;` または `,` で並べられる。
 #[macro_export]
 macro_rules! lazyfn {
-    (recur $name:ident = || $(-> $r:ty)? $body:block) => {
+    (recur $name:ident = || $(-> $r:ty)? $body:block $($rest:tt)*) => {
         $crate::lazyfn!(@ ($) [recur] $name [] [] [] [$($r)?] $body);
+        $crate::lazyfn!(@next $($rest)*);
     };
-    (recur $name:ident = |$state:ident: &mut $s:ty $(, $a:ident: $t:ty)* $(,)?| $(-> $r:ty)? $body:block) => {
+    (recur $name:ident = |$state:ident: &mut $s:ty $(, $a:ident: $t:ty)* $(,)?| $(-> $r:ty)? $body:block $($rest:tt)*) => {
         $crate::lazyfn!(@ ($) [recur] $name [$state: &mut $s $(, $a: $t)*] [$state $(, $a)*] [&mut $s $(, $t)*] [$($r)?] $body);
+        $crate::lazyfn!(@next $($rest)*);
     };
-    (recur $name:ident = |$($a:ident: $t:ty),* $(,)?| $(-> $r:ty)? $body:block) => {
+    (recur $name:ident = |$($a:ident: $t:ty),* $(,)?| $(-> $r:ty)? $body:block $($rest:tt)*) => {
         $crate::lazyfn!(@ ($) [recur] $name [$($a: $t),*] [$($a),*] [$($t),*] [$($r)?] $body);
+        $crate::lazyfn!(@next $($rest)*);
     };
-    ($name:ident = || $(-> $r:ty)? $body:block) => {
+    ($name:ident = || $(-> $r:ty)? $body:block $($rest:tt)*) => {
         $crate::lazyfn!(@ ($) [plain] $name [] [] [] [$($r)?] $body);
+        $crate::lazyfn!(@next $($rest)*);
     };
-    ($name:ident = |$($a:ident: $t:ty),* $(,)?| $(-> $r:ty)? $body:block) => {
+    ($name:ident = |$($a:ident: $t:ty),* $(,)?| $(-> $r:ty)? $body:block $($rest:tt)*) => {
         $crate::lazyfn!(@ ($) [plain] $name [$($a: $t),*] [$($a),*] [$($t),*] [$($r)?] $body);
+        $crate::lazyfn!(@next $($rest)*);
     };
+    (@next) => {};
+    (@next ;) => {};
+    (@next ,) => {};
+    (@next ; $($rest:tt)+) => { $crate::lazyfn!($($rest)+); };
+    (@next , $($rest:tt)+) => { $crate::lazyfn!($($rest)+); };
     (@ ($d:tt) [$mode:ident] $name:ident [$($sig:tt)*] [$($a:ident),*] [$($t:ty),*] [] $body:block) => {
         $crate::lazyfn!(@ ($d) [$mode] $name [$($sig)*] [$($a),*] [$($t),*] [()] $body);
     };
