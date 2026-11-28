@@ -117,6 +117,35 @@ pub fn printable<T: Printable>(value: T) -> Printed<T> {
     Printed(value)
 }
 
+/// `debug!` から Printable と Debug を解決するためのラッパー。
+#[doc(hidden)]
+pub struct DebugValue<'a, T: ?Sized>(pub &'a T);
+
+#[doc(hidden)]
+pub trait DebugDisplay {
+    fn as_debug_display(self) -> impl Display;
+}
+
+impl<T: Printable + ?Sized> DebugDisplay for &&DebugValue<'_, T> {
+    fn as_debug_display(self) -> impl Display {
+        printable(self.0)
+    }
+}
+
+impl<T: fmt::Debug + ?Sized> DebugDisplay for &DebugValue<'_, T> {
+    fn as_debug_display(self) -> impl Display {
+        struct DisplayDebug<'a, T: ?Sized>(&'a T);
+
+        impl<T: fmt::Debug + ?Sized> Display for DisplayDebug<'_, T> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fmt::Debug::fmt(self.0, f)
+            }
+        }
+
+        DisplayDebug(self.0)
+    }
+}
+
 impl<T: Printable> Display for Printed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Printable::fmt(&self.0, f)

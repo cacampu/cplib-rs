@@ -1,8 +1,12 @@
 use cplib_lang_io::marker::Bytes;
-use cplib_lang_io::{input, multi_testcase, outln};
+use cplib_lang_io::{self as io, input, multi_testcase, outln};
+
+fn main() {
+    io::run(solve);
+}
 
 #[multi_testcase]
-fn main() {
+fn solve() {
     let n = input!(usize);
     let s = input!(Bytes);
     for cut in 1..n {

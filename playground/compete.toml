@@ -2,10 +2,13 @@ test-suite = "{{ manifest_dir }}/testcases/{{ bin_alias }}.yml"
 
 [template]
 src = '''
-use cplib_lang_io::{fastout, input, outln};
+use cplib_lang_io::{self as io, input, outln};
 
-#[fastout]
 fn main() {
+    io::run(solve);
+}
+
+fn solve() {
     input! {
         n: usize,
         a: [i64; n],

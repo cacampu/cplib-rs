@@ -17,24 +17,24 @@ fn main() {
     outln!("{}", size(&mut sizes, 0));
 
     let mut weights = [1i64; 6];
-    lazyfn!(recur sum = |sub: &mut [i64], u: usize| -> i64 {
-        let children: i64 = tree[u].iter().map(|&v| sum(sub, v)).sum();
-        sub[u] = weights[u] + children;
-        sub[u]
-    });
+    let mut limit = 50;
+    let mut calls = 0;
+    lazyfn!(
+        recur sum = |sub: &mut [i64], u: usize| -> i64 {
+            let children: i64 = tree[u].iter().map(|&v| sum(sub, v)).sum();
+            sub[u] = weights[u] + children;
+            sub[u]
+        };
+        check = |m: i64| -> bool {
+            calls += 1;
+            m * m <= limit
+        };
+    );
     let mut sub = [0; 6];
     outln!("{}", sum!(&mut sub, 0));
     weights[3] = 100; // 呼び出し間ではキャプチャ対象も更新できる。
     outln!("{}", sum!(&mut sub, 0));
 
-    let mut limit = 50;
-    let mut calls = 0;
-    lazyfn!(
-        check = |m: i64| -> bool {
-            calls += 1;
-            m * m <= limit
-        }
-    );
     outln!("{}", binary_search(0i64, 2_000_000, check!(fn)));
     limit = 100;
     outln!("{}", binary_search(0i64, 2_000_000, check!(fn)));
@@ -65,4 +65,16 @@ fn main() {
     add!(2);
     remove!(0);
     outln!("{kinds}");
+
+    let mut path = Vec::new();
+    let mut steps = 0;
+    recurfn!(walk = [path, steps] |u: usize| {
+        path.push(u);
+        *steps += 1;
+        for &v in &tree[u] {
+            walk!(v);
+        }
+    });
+    walk(0);
+    outln!(steps, path);
 }

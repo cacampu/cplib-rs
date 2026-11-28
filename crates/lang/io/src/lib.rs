@@ -3,7 +3,8 @@
 //! `input! { n: usize, a: [i64; n] }` と `let n = input!(usize)` の両形式を扱う。
 //! 任意の入力元には `input!(from &mut source, ...)` を使う。
 //! 共有の標準入力は `pub static INPUT`。`Grid::read(h, w, &INPUT)` などへ直接渡せる。
-//! `#[fastout]` / `#[multi_testcase]` は共通出力を関数終了時に flush する。
+//! 標準入力の補充前に共有出力を flush する。対話問題でも `outln!` と `input!` を使える。
+//! `io::run(solve)` は共通出力をまとめ、スコープ終了時に flush する。
 
 extern crate self as io;
 
@@ -22,16 +23,30 @@ pub use multi_testcase::{debug, fastout, input, multi_testcase, out, outln, read
 #[doc(hidden)]
 pub use output::debug_args as __debug_args;
 #[doc(hidden)]
+pub use output::debug_enabled as __debug_enabled;
+#[doc(hidden)]
 pub use output::print_args as __print_args;
 #[doc(hidden)]
 pub use output::print_args_ln as __print_args_ln;
-pub use output::{FlushGuard, flush, flush_guard, print, println, stdout};
+pub use output::{FlushGuard, flush, flush_guard, is_local, print, println, run, stdout};
+#[doc(hidden)]
+pub use printable::{DebugDisplay as __DebugDisplay, DebugValue as __DebugValue};
 pub use printable::{
     DisplayValue, OptionOr, Printable, Printed, Separated, display, lines, option_or, printable,
     separated,
 };
 
 pub mod marker;
+
+/// 実行時の環境変数 `CP_LOCAL=1` があるときだけブロックを実行する。
+#[macro_export]
+macro_rules! local {
+    ($($body:tt)*) => {{
+        if $crate::is_local() {
+            $($body)*
+        }
+    }};
+}
 
 pub fn yes_no(ok: bool) -> &'static str {
     if ok { "Yes" } else { "No" }
@@ -139,7 +154,7 @@ pub fn debug<T>(value: T)
 where
     T: Printable,
 {
-    if cfg!(debug_assertions) {
+    if output::debug_enabled() {
         eprintln!("{}", printable(value));
     }
 }
@@ -149,7 +164,7 @@ where
     I: IntoIterator<Item = T>,
     T: Printable,
 {
-    if cfg!(debug_assertions) {
+    if output::debug_enabled() {
         eprintln!("{}", line(iter));
     }
 }
@@ -160,7 +175,7 @@ where
     J: IntoIterator<Item = T>,
     T: Printable,
 {
-    if cfg!(debug_assertions) {
+    if output::debug_enabled() {
         eprintln!("{}", matrix(rows));
     }
 }

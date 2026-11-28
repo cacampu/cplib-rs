@@ -1,6 +1,8 @@
 //! Printable・区切り指定・デバッグ出力と swap! の例。
 use cplib_graph_grid::Grid;
-use cplib_lang_io::{debug, display, fastout, lines, option_or, out, outln, separated, yes_no};
+use cplib_lang_io::{
+    debug, display, fastout, lines, local, option_or, out, outln, separated, yes_no,
+};
 use cplib_lang_macros::swap;
 use cplib_math_modint::ModInt998244353 as Mi;
 use cplib_math_vector::Vector;
@@ -39,6 +41,14 @@ fn main() {
     debug!(values);
     debug!(separated(&values, ";"));
     debug!("x={x:.1}");
+    #[derive(Debug)]
+    enum Direction {
+        Left,
+        Right,
+    }
+    let directions = vec![Direction::Left, Direction::Right];
+    debug!(directions);
+    assert_eq!(directions.len(), 2);
     cplib_lang_io::debug(lines(&values));
     let mut evaluations = 0;
     debug!({
@@ -46,4 +56,8 @@ fn main() {
         Some(99)
     });
     outln!("evaluations={evaluations}");
+    local! {
+        assert_eq!(evaluations, 1);
+        eprintln!("local check");
+    }
 }

@@ -1,16 +1,21 @@
 //! 出力がヘルパー・クロージャ・別スレッドでも同じバッファを使う例。
-use cplib_lang_io::{fastout, out, outln};
+use cplib_lang_io::{self as io, out, outln};
 
-#[fastout]
-fn main() -> std::io::Result<()> {
+fn main() {
+    io::run(solve);
+}
+
+fn solve() {
     out!("main ");
-    helper();
+    io::run(helper);
     let closure = || outln!("closure");
     closure();
     std::thread::spawn(|| outln!("thread")).join().unwrap();
-    let mut writer = cplib_lang_io::stdout();
-    cplib_lang_io::write_line(&mut *writer, [1, 2, 3])?;
-    Ok(())
+    outln!([1, 2, 3]);
+    assert_eq!(
+        io::stdout().buffer(),
+        b"main helper closure\nthread\n1 2 3\n"
+    );
 }
 
 fn helper() {

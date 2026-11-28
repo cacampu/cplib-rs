@@ -29,7 +29,7 @@ pub fn outln(tokens: TokenStream) -> TokenStream {
     expand_output(tokens, true, false)
 }
 
-/// debug ビルド時だけ、同じ出力形式で stderr へ改行付きで出力する。
+/// `CP_LOCAL=1` または `CPLIB_DEBUG=1` で、値を stderr へ改行付きで出力する。
 #[proc_macro]
 pub fn debug(tokens: TokenStream) -> TokenStream {
     expand_output(tokens, true, true)
@@ -106,6 +106,7 @@ pub fn fastout(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// 先頭のケース数を共通スキャナから読み、関数本体をケースごとに呼ぶ。
+/// 全ケースを一つの出力バッファリングスコープで実行する。
 /// 本体の `return` は現在のケースだけを終了する。関数の返り値は `()`。
 #[proc_macro_attribute]
 pub fn multi_testcase(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -128,13 +129,14 @@ pub fn multi_testcase(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
     let body = function.block;
     function.block = syn::parse_quote!({
-        let _cplib_flush_guard = #runtime::flush_guard();
-        let __cplib_cases = #runtime::read::<usize>();
-        #[allow(unused_mut)]
-        let mut __cplib_case = || #body;
-        for _ in 0..__cplib_cases {
-            __cplib_case();
-        }
+        #runtime::run(|| {
+            let __cplib_cases = #runtime::read::<usize>();
+            #[allow(unused_mut)]
+            let mut __cplib_case = || #body;
+            for _ in 0..__cplib_cases {
+                __cplib_case();
+            }
+        });
     });
     quote!(#function).into()
 }

@@ -4,10 +4,13 @@
 proconio 風の宣言形式に加え、`input!(型)` を値を返す式として使える。
 
 ```rust
-use io::{fastout, input, outln};
+use io::{input, outln};
 
-#[fastout]
 fn main() {
+    io::run(solve);
+}
+
+fn solve() {
     let n = input!(usize);
     input! { mut a: [i64; n] }
     a.sort_unstable();
@@ -73,17 +76,19 @@ fn read_grid(h: usize, w: usize) -> grid::Grid<i64> {
 そのガード保持中だけは `from &mut source` を使い、同じバッファを再ロックしないこと。
 ローカル入力を再利用する場合も `from &mut source` と書く (`from source` は入力元をムーブする)。
 
-`Scanner` は入力を一括で読む。対話問題では次のように逐次入力元を明示する。
+共有の標準入力は、保持しているトークンを使い切ったときに次の行を読む。
+入力バッファに読み込み済みの行があればそれを使い、標準入力から補充する直前に出力を flush する。
+対話でも同じ `io::run` と `outln!`、`input!` を使える。
+空行を読み飛ばし、EOF までに必要なトークンがなければエラーになる。
 
 ```rust,ignore
-let mut source = io::LineSource::new(std::io::BufReader::new(std::io::stdin()));
-loop {
-    outln!("? ...");
-    io::flush();
-    let response = input!(from &mut source, i64);
-    // ...
-}
+outln!("? ...");
+let response = input!(i64);
 ```
+
+EOF まで一括で読み込みたい場合は `Scanner::from_reader(std::io::stdin().lock())` で入力元を作り、
+`input!(from &mut source, ...)` に渡す。自分で作る `LineSource` は任意の `BufRead` を逐次読む。
+自前の入力元で対話する場合は、応答を待つ前に `io::flush()` する。
 
 ## Vector と Grid
 
@@ -154,21 +159,43 @@ debug!("a={a:?}");               // 標準の書式指定
 io::debug(&a);                   // 関数版も同じ Printable の形式
 ```
 
-デバッグ出力は `debug_assertions` が有効なビルドでのみ行う。
+`debug!` は `Printable` の出力形式を優先し、`Debug` だけを実装した型には `{:?}` を使う。
+たとえば `#[derive(Debug)]` を付けた独自型の `Vec` も `debug!(v)` で出力できる。
+実行プロセスに `CP_LOCAL=1` が設定されていると出力する。
+デバッグ出力だけ有効にする場合は `CPLIB_DEBUG=1` を使う。
 `debug!` は無効時に引数式も評価しない。関数版の `debug` / `debug_line` /
 `debug_matrix` では通常の関数と同じく引数式を評価する。
 
-`out!` / `outln!` は全関数・スレッドで同じ `BufWriter` を使う。
-`#[fastout]` はそのバッファを関数終了時に flush するだけで、ローカル変数を捕捉する
-`print!` マクロは作らない。ヘルパー関数やクロージャからも `outln!` を使える。
-属性なしの場合は最後に `io::flush()` を呼ぶか、`let _guard = io::flush_guard();` を置く。
-`std::println!` はこのバッファを通さないので、出力は `outln!` に揃える。
+`local! { ... }` は `CP_LOCAL=1` のときだけブロックを実行する。
+`io::is_local()` で同じ条件を関数として使える。
+
+```rust,ignore
+use io::{debug, local};
+
+debug!(values);
+local! {
+    for n in 2..=2000 {
+        assert!(judge(n, &ans), "WA: {n}");
+    }
+}
+```
+
+`out!` / `outln!` と `io::print` / `io::println` は、ヘルパー関数・クロージャを
+含むすべての呼び出し元で同じ `BufWriter` を共有する。`io::run(solve)` の中では
+出力をまとめ、最後のバッファリングスコープを抜けるときに flush する。スコープ外では
+呼び出しごとに flush する。`#[fastout]` は付けた関数を抜ける時点で flush する。
+入力待ち以外のタイミングで送信したい場合や、`std::process::exit` の前には `io::flush()` を呼ぶ。
+`io::stdout()` で直接ライターを借りる場合は、標準入力や出力の前にガードを解放する。
 
 ```rust
 use io::{input, multi_testcase, outln};
 
-#[multi_testcase]
 fn main() {
+    io::run(solve);
+}
+
+#[multi_testcase]
+fn solve() {
     let n = input!(usize);
     if n == 0 {
         outln!("empty");
@@ -180,7 +207,8 @@ fn main() {
 ```
 
 `#[multi_testcase]` は先頭のケース数も同じスキャナから読むため、ケース数の後の改行は必須ではない。
-返り値が `()` の通常の関数に使い、最後に共通出力を flush する。`#[fastout]` の併用は不要。
+返り値が `()` の通常の関数に使い、全ケースで一つのバッファを共有する。
+単独で呼べば全ケース終了時に flush し、外側に `io::run` があればそのスコープまで出力をまとめる。
 以前の `multi-testcase` クレートからも属性を引き続き import できるが、実行時には `io` の依存が必要。
 
 Cargo.toml で `io` を `cplib-lang-io` などへ改名した場合も、手続きマクロは `proc-macro-crate` で

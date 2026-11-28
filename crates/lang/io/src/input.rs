@@ -1,8 +1,9 @@
 use std::any::type_name;
 use std::fmt::Debug;
-use std::io::{self, BufRead, Read};
+use std::io::{self, BufRead, BufReader, Read};
+use std::ops::Range;
 use std::str::FromStr;
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{LazyLock, Mutex, MutexGuard, OnceLock};
 
 /// 空白区切りの入力元。トークン取得が進むため、読み取りには可変参照を渡す。
 pub trait Source {
@@ -50,11 +51,18 @@ pub trait RuntimeReadable {
     fn read<S: Source + ?Sized>(self, source: &mut S) -> Self::Output;
 }
 
-/// 全入力を保持するスキャナ。標準入力のデフォルト。対話問題には `LineSource` を使う。
+/// 文字列からトークンを読む。共有の標準入力では必要に応じて次の行を補充する。
 #[derive(Clone, Debug)]
 pub struct Scanner {
     input: String,
     position: usize,
+    stdin: Option<StdinRefill>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct StdinRefill {
+    peeked: OnceLock<Option<String>>,
+    eof: bool,
 }
 
 impl Scanner {
@@ -62,9 +70,18 @@ impl Scanner {
         Self {
             input: input.into(),
             position: 0,
+            stdin: None,
         }
     }
 
+    fn from_stdin() -> Self {
+        Self {
+            stdin: Some(StdinRefill::default()),
+            ..Self::new(String::new())
+        }
+    }
+
+    /// EOF まで入力を一括で読み込む。
     pub fn from_reader(mut reader: impl Read) -> io::Result<Self> {
         let mut input = String::new();
         reader.read_to_string(&mut input)?;
@@ -75,25 +92,93 @@ impl Scanner {
         T::read(self)
     }
 
-    /// 未消費のトークンがないか。入力位置は変えない。
+    /// 未消費のトークンがないか。標準入力では必要に応じて先読みし、トークンは消費しない。
     pub fn is_empty(&self) -> bool {
-        self.input.as_bytes()[self.position..]
+        if self.input.as_bytes()[self.position..]
             .iter()
-            .all(u8::is_ascii_whitespace)
+            .any(|byte| !byte.is_ascii_whitespace())
+        {
+            return false;
+        }
+        self.stdin.as_ref().is_none_or(|stdin| {
+            stdin.eof
+                || stdin
+                    .peeked
+                    .get_or_init(|| {
+                        let mut line = String::new();
+                        read_stdin_line(&mut line).then_some(line)
+                    })
+                    .is_none()
+        })
     }
 }
 
 impl Source for Scanner {
     fn next_token(&mut self) -> Option<&str> {
-        let bytes = self.input.as_bytes();
-        while self.position < bytes.len() && bytes[self.position].is_ascii_whitespace() {
-            self.position += 1;
+        loop {
+            if let Some(token) = token_range(&self.input, &mut self.position) {
+                return Some(&self.input[token]);
+            }
+            let stdin = self.stdin.as_mut()?;
+            if stdin.eof {
+                return None;
+            }
+            self.position = 0;
+            let found = match stdin.peeked.take() {
+                Some(Some(line)) => {
+                    self.input = line;
+                    true
+                }
+                Some(None) => false,
+                None => read_stdin_line(&mut self.input),
+            };
+            if !found {
+                self.input.clear();
+                stdin.eof = true;
+                return None;
+            }
         }
-        let start = self.position;
-        while self.position < bytes.len() && !bytes[self.position].is_ascii_whitespace() {
-            self.position += 1;
+    }
+}
+
+fn token_range(text: &str, position: &mut usize) -> Option<Range<usize>> {
+    let bytes = text.as_bytes();
+    while *position < bytes.len() && bytes[*position].is_ascii_whitespace() {
+        *position += 1;
+    }
+    let start = *position;
+    while *position < bytes.len() && !bytes[*position].is_ascii_whitespace() {
+        *position += 1;
+    }
+    (start < *position).then_some(start..*position)
+}
+
+struct StdinRefillReader;
+
+impl Read for StdinRefillReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // BufReader に入力が残っている間は、行をまたいでもここには来ない。
+        super::output::flush_if_initialized();
+        io::stdin().read(buf)
+    }
+}
+
+fn read_stdin_line(line: &mut String) -> bool {
+    static STDIN: LazyLock<Mutex<BufReader<StdinRefillReader>>> =
+        LazyLock::new(|| Mutex::new(BufReader::new(StdinRefillReader)));
+    let mut stdin = STDIN.lock().expect("stdin reader lock poisoned");
+    loop {
+        line.clear();
+        if stdin.read_line(line).expect("failed to read stdin") == 0 {
+            return false;
         }
-        (start < self.position).then(|| &self.input[start..self.position])
+        if line
+            .as_bytes()
+            .iter()
+            .any(|byte| !byte.is_ascii_whitespace())
+        {
+            return true;
+        }
     }
 }
 
@@ -121,16 +206,8 @@ impl<R: BufRead> LineSource<R> {
 impl<R: BufRead> Source for LineSource<R> {
     fn next_token(&mut self) -> Option<&str> {
         loop {
-            let bytes = self.line.as_bytes();
-            while self.position < bytes.len() && bytes[self.position].is_ascii_whitespace() {
-                self.position += 1;
-            }
-            let start = self.position;
-            while self.position < bytes.len() && !bytes[self.position].is_ascii_whitespace() {
-                self.position += 1;
-            }
-            if start < self.position {
-                return Some(&self.line[start..self.position]);
+            if let Some(token) = token_range(&self.line, &mut self.position) {
+                return Some(&self.line[token]);
             }
             self.line.clear();
             self.position = 0;
@@ -147,7 +224,7 @@ impl<R: BufRead> Source for LineSource<R> {
 }
 
 /// 共有参照から読める入力バッファ。読み取り操作の間だけ内部をロックする。
-/// `new()` は標準入力を遅延初期化し、`From<Scanner>` は独立した入力元を作る。
+/// `new()` は標準入力を必要な分だけ読み、`From<Scanner>` は独立した入力元を作る。
 pub struct InputBuffer {
     source: OnceLock<Mutex<Scanner>>,
 }
@@ -168,9 +245,7 @@ impl InputBuffer {
     /// ガード保持中は同じバッファの `read` / `lock` を再度呼ばないこと。
     pub fn lock(&self) -> MutexGuard<'_, Scanner> {
         self.source
-            .get_or_init(|| {
-                Mutex::new(Scanner::from_reader(io::stdin().lock()).expect("failed to read stdin"))
-            })
+            .get_or_init(|| Mutex::new(Scanner::from_stdin()))
             .lock()
             .expect("input lock poisoned")
     }

@@ -24,11 +24,24 @@ pub fn expand(tokens: TokenStream, newline: bool, debug: bool) -> syn::Result<To
         Output::Format(tokens) => quote!(::std::format_args!(#tokens)),
         Output::Values(values) => {
             let format = LitStr::new(&vec!["{}"; values.len()].join(" "), Span::call_site());
-            quote!(::std::format_args!(#format, #(#runtime::printable(&(#values))),*))
+            if debug && !values.is_empty() {
+                quote!(::std::format_args!(
+                    #format,
+                    #((&&#runtime::__DebugValue(&(#values))).as_debug_display()),*
+                ))
+            } else {
+                quote!(::std::format_args!(#format, #(#runtime::printable(&(#values))),*))
+            }
         }
     };
     Ok(if debug {
-        quote!(if ::std::cfg!(debug_assertions) { #runtime::__debug_args(#args); })
+        quote! {
+            if #runtime::__debug_enabled() {
+                #[allow(unused_imports)]
+                use #runtime::__DebugDisplay as _;
+                #runtime::__debug_args(#args);
+            }
+        }
     } else if newline {
         // 改行は実行時に付ける。cargo-equip のマクロ展開で生成リテラルの
         // バックスラッシュが二重にエスケープされる問題も避けられる。
